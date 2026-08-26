@@ -1,0 +1,17 @@
+{
+  "id": "/",
+  "name": "SMART QC — Quản lý chất lượng nội kiểm",
+  "short_name": "SMART QC",
+  "description": "Quản lý chất lượng nội kiểm Khoa Vi sinh - Miễn dịch",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#EEF2F6",
+  "theme_color": "#0E6BA8",
+  "categories": ["medical", "productivity", "business"],
+  "icons": [
+    {"src":"/icons/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
+    {"src":"/icons/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+  ]
+}
