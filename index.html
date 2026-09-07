@@ -1250,8 +1250,8 @@ function addResult({date,time,machineId,testId,lotId,level,value,user}, opts={})
 function buildInitialCatalog(){
   const s={ meta:{lastId:0},
     settings:{theme:'light', currentUser:null, currentRole:null,
-      users:['TK. Nguyễn Thị Bình (Ths.XN)','KTVTK. Nguyễn Thái Hòa (CKI.XN)','NV. Nguyễn Gia Khang (CN.XN)','NV. Bùi Thị Tiến Phước (CN.XN)',
-    'NV. Trần Thị Cẩm Ly (CN.XN)','NV. Nguyễn Hồng Lợi (CN.XN)',],
+      users:['TK. Nguyễn Thị Bình (Ths)','KTVTK. Nguyễn Thái Hòa (CKIXN)','NV. Nguyễn Gia Khang (CNXN)','NV. Bùi Thị Tiến Phước (CNXN)',
+    'NV. Trần Thị Cẩm Ly (CNXN)','NV. Nguyễn Thị Ngọc Trâm (CNXN)', 'NV. Lê Diệu Đan (CNXN)'],
       rules:{r12s:true,r13s:true,r22s:true,r4s:true,r41s:true,r10x:true}},
     machines:[], tests:[], lots:[], configs:[], results:[],
     rapidWaterTests:[], rapidWaterResults:[], rapidWaterLots:[], alerts:[], audit:[] };
@@ -1418,7 +1418,7 @@ const VIEW_META={
   machines:['Máy xét nghiệm','Danh mục thiết bị'],
   lots:['Lot QC Máy miễn dịch tự động','Quản lý lô QC - theo Level 1 & Level 2'],
   'rapidwater-lots':['Lot QC Test nhanh & Test nước','Quản lý Lot - theo chứng Âm và chứng Dương'],
-  reports:['Báo cáo','Xuất báo cáo QC'],
+  reports:['Báo cáo','Xuất báo cáo QC Miễn dịch'],
   audit:['Nhật kí','Lịch sử thao tác — không thể chỉnh sửa hoặc xoá'],
   users:['Người dùng','Danh sách người dùng hệ thống'],
   system:['Hệ thống','Cấu hình chung']
@@ -3147,12 +3147,13 @@ function bootApp(){
     : [];
   if(users.length===0){
     state.settings.users=[
-      'TK. Nguyễn Thị Bình (Ths.XN)',
-      'KTVTK. Nguyễn Thái Hòa (CKI.XN)',
-      'NV. Nguyễn Gia Khang (CN.XN)',
-      'NV. Bùi Thị Tiến Phước (CN.XN)',
-      'NV. Trần Thị Cẩm Ly (CN.XN)',
-      'NV. Nguyễn Hồng Lợi (CN.XN)',
+      'TK. Nguyễn Thị Bình (ThsXN)',
+      'KTVTK. Nguyễn Thái Hòa (CKIXN)',
+      'NV. Nguyễn Gia Khang (CNXN)',
+      'NV. Bùi Thị Tiến Phước (CNXN)',
+      'NV. Trần Thị Cẩm Ly (CNXN)',
+      'NV. Nguyễn Thị Ngọc Trâm (CNXN)',
+      'NV. Lê Diệu Đan (CNXN)',
     ];
   }
   sel.innerHTML=state.settings.users
@@ -4131,7 +4132,7 @@ function renderVirologyTC(){
   virologyEnsureState();
   const el=document.getElementById('virologyHubPanel')||document.getElementById('view-virology-tc');
   const selected=el.dataset.strain||Object.keys(VIROLOGY_TEMPLATES)[0]; el.dataset.strain=selected;
-  el.innerHTML=`<div class="card"><div class="card-head"><div><h3>Nhập QC Vi sinh (TC)</h3><span class="hint">Mẫu biểu lấy theo khung bảng trong hồ sơ ảnh; bỏ toàn bộ phần ghi tay, người dùng tự nhập.</span></div><div class="btn-row"><select id="vtc_strain" onchange="changeVirologyStrain(this.value)">${Object.keys(VIROLOGY_TEMPLATES).map(k=>`<option value="${escapeHtml(k)}" ${k===selected?'selected':''}>${escapeHtml(k)}</option>`).join('')}</select><button class="btn ghost sm" onclick="openVirologyLotManager()">Quản lý LOT</button></div></div><div class="card-body" style="padding:12px">${virologyTCGridHtml(selected)}</div></div>`;
+  el.innerHTML=`<div class="card"><div class="card-head"><div><h3>Nhập QC Vi sinh (TC)</h3><span class="hint">Mẫu biểu lấy theo khung bảng trong hồ sơ ảnh, người dùng tự nhập.</span></div><div class="btn-row"><select id="vtc_strain" onchange="changeVirologyStrain(this.value)">${Object.keys(VIROLOGY_TEMPLATES).map(k=>`<option value="${escapeHtml(k)}" ${k===selected?'selected':''}>${escapeHtml(k)}</option>`).join('')}</select><button class="btn ghost sm" onclick="openVirologyLotManager()">Quản lý LOT</button></div></div><div class="card-body" style="padding:12px">${virologyTCGridHtml(selected)}</div></div>`;
   const lot=virologyLotFor(selected); const t=VIROLOGY_TEMPLATES[selected];
   t.antibiotics.forEach((_,i)=>{const x=state.virologyLots.find(v=>v.strain===selected);});
 }
