@@ -1135,12 +1135,13 @@ function migrateState(){
      combobox "Chọn người dùng" bị rỗng sau khi dữ liệu cục bộ đã lưu
      một mảng users rỗng. */
   const defaultUsers=[
-    'TK. Nguyễn Thị Bình (Ths.XN)',
-    'KTVTK. Nguyễn Thái Hòa (CKI.XN)',
-    'NV. Nguyễn Gia Khang (CN.XN)',
-    'NV. Bùi Thị Tiến Phước (CN.XN)',
-    'NV. Trần Thị Cẩm Ly (CN.XN)',
-    'NV. Nguyễn Hồng Lợi (CN.XN)',
+    'TK. Nguyễn Thị Bình (ThsXN)',
+    'KTVTK. Nguyễn Thái Hòa (CKIXN)',
+    'NV. Nguyễn Gia Khang (CNXN)',
+    'NV. Bùi Thị Tiến Phước (CNXN)',
+    'NV. Trần Thị Cẩm Ly (CNXN)',
+    'NV. Nguyễn Thị Ngọc Trâm (CNXN)',
+    'NV. Lê Diệu Đan (CNXN)',
   ];
   if(!Array.isArray(state.settings.users) || state.settings.users.length===0){
     state.settings.users=[...defaultUsers];
@@ -1250,8 +1251,8 @@ function addResult({date,time,machineId,testId,lotId,level,value,user}, opts={})
 function buildInitialCatalog(){
   const s={ meta:{lastId:0},
     settings:{theme:'light', currentUser:null, currentRole:null,
-      users:['TK. Nguyễn Thị Bình (Ths.XN)','KTVTK. Nguyễn Thái Hòa (CKI.XN)','NV. Nguyễn Gia Khang (CN.XN)','NV. Bùi Thị Tiến Phước (CN.XN)',
-    'NV. Trần Thị Cẩm Ly (CN.XN)','NV. Nguyễn Hồng Lợi (CN.XN)',],
+      users:['TK. Nguyễn Thị Bình (ThsXN)','KTVTK. Nguyễn Thái Hòa (CKIXN)','NV. Nguyễn Gia Khang (CNXN)','NV. Bùi Thị Tiến Phước (CNXN)',
+    'NV. Trần Thị Cẩm Ly (CNXN)','NV. Nguyễn Thị Ngọc Trâm (CNXN)','NV. Lê Diệu Đan (CNXN)'],
       rules:{r12s:true,r13s:true,r22s:true,r4s:true,r41s:true,r10x:true}},
     machines:[], tests:[], lots:[], configs:[], results:[],
     rapidWaterTests:[], rapidWaterResults:[], rapidWaterLots:[], alerts:[], audit:[] };
@@ -3143,12 +3144,13 @@ function bootApp(){
     : [];
   if(users.length===0){
     state.settings.users=[
-      'TK. Nguyễn Thị Bình (Ths.XN)',
-      'KTVTK. Nguyễn Thái Hòa (CKI.XN)',
-      'NV. Nguyễn Gia Khang (CN.XN)',
-      'NV. Bùi Thị Tiến Phước (CN.XN)',
-      'NV. Trần Thị Cẩm Ly (CN.XN)',
-      'NV. Nguyễn Hồng Lợi (CN.XN)',
+      'TK. Nguyễn Thị Bình (ThsXN)',
+      'KTVTK. Nguyễn Thái Hòa (CKIXN)',
+      'NV. Nguyễn Gia Khang (CNXN)',
+      'NV. Bùi Thị Tiến Phước (CNXN)',
+      'NV. Trần Thị Cẩm Ly (CNXN)',
+      'NV. Nguyễn Thị Ngọc Trâm (CNXN)',
+      'NV. Lê Diệu Đan (CNXN)',
     ];
   }
   sel.innerHTML=state.settings.users
