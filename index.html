@@ -1135,8 +1135,8 @@ function migrateState(){
      combobox "Chọn người dùng" bị rỗng sau khi dữ liệu cục bộ đã lưu
      một mảng users rỗng. */
   const defaultUsers=[
-    'TK. Nguyễn Thị Bình (Ths)',
-    'KTVTK. Nguyễn Thái Hòa (CKIXN)',
+    'TK. Nguyễn Thị Bình (Ths.XN)',
+    'KTVTK. Nguyễn Thái Hòa (CKI.XN)',
     'NV. Nguyễn Gia Khang (CNXN)',
     'NV. Bùi Thị Tiến Phước (CNXN)',
     'NV. Trần Thị Cẩm Ly (CNXN)',
@@ -1252,7 +1252,7 @@ function buildInitialCatalog(){
   const s={ meta:{lastId:0},
     settings:{theme:'light', currentUser:null, currentRole:null,
       users:['TK. Nguyễn Thị Bình (Ths)','KTVTK. Nguyễn Thái Hòa (CKIXN)','NV. Nguyễn Gia Khang (CNXN)','NV. Bùi Thị Tiến Phước (CNXN)',
-    'NV. Trần Thị Cẩm Ly (CNXN)','NV. Nguyễn Thị Ngọc Trâm (CNXN)', 'NV. Lê Diệu Đan (CNXN)'],
+    'NV. Trần Thị Cẩm Ly (CNXN)','NV. Nguyễn Thị Ngọc Trâm (CNXN)','NV. Lê Diệu Đan (CNXN)'],
       rules:{r12s:true,r13s:true,r22s:true,r4s:true,r41s:true,r10x:true}},
     machines:[], tests:[], lots:[], configs:[], results:[],
     rapidWaterTests:[], rapidWaterResults:[], rapidWaterLots:[], alerts:[], audit:[] };
@@ -1419,7 +1419,7 @@ const VIEW_META={
   machines:['Máy xét nghiệm','Danh mục thiết bị'],
   lots:['Lot QC Máy miễn dịch tự động','Quản lý lô QC - theo Level 1 & Level 2'],
   'rapidwater-lots':['Lot QC Test nhanh & Test nước','Quản lý Lot - theo chứng Âm và chứng Dương'],
-  reports:['Báo cáo','Xuất báo cáo QC Miễn dịch'],
+  reports:['Báo cáo','Xuất báo cáo QC'],
   audit:['Nhật kí','Lịch sử thao tác — không thể chỉnh sửa hoặc xoá'],
   users:['Người dùng','Danh sách người dùng hệ thống'],
   system:['Hệ thống','Cấu hình chung']
@@ -3148,7 +3148,7 @@ function bootApp(){
     : [];
   if(users.length===0){
     state.settings.users=[
-      'TK. Nguyễn Thị Bình (ThsXN)',
+      'TK. Nguyễn Thị Bình (Ths)',
       'KTVTK. Nguyễn Thái Hòa (CKIXN)',
       'NV. Nguyễn Gia Khang (CNXN)',
       'NV. Bùi Thị Tiến Phước (CNXN)',
@@ -4088,8 +4088,8 @@ function renderVirologyHistoryPanel(kind){
   const isTD=active==='td';
   const data=(isTD?state.virologyTDResults:state.virologyTCResults).filter(r=>virologyMatchesFilter(r,active));
   const rows=data.slice(0,100).map((r,i)=>isTD
-    ? `<tr><td>${i+1}</td><td>${escapeHtml(r.testStrain||r.panelType||'—')}</td><td>${virologyFmtDate(virologyRecordDate(r,'td'))}</td><td>${escapeHtml(r.techId||'—')}</td><td>${escapeHtml(r.panelLot||'—')}</td><td><button class="btn sm" onclick="printPhoenixQCReport('${r.id}')">🖨 In PDF</button></td></tr>`
-    : `<tr><td>${i+1}</td><td>${escapeHtml(r.strain||'—')}</td><td>${virologyFmtDate(virologyRecordDate(r,'tc'))}</td><td>${escapeHtml(r.staff||Object.values(r.rowMeta||{}).find(x=>x?.staff)?.staff||'—')}</td><td>${escapeHtml(r.mediaLot||'—')}</td><td><button class="btn sm" onclick="printVirologyTC('${r.id}')">🖨 In PDF</button></td></tr>`
+    ? `<tr><td>${i+1}</td><td>${escapeHtml(r.testStrain||r.panelType||'—')}</td><td>${virologyFmtDate(virologyRecordDate(r,'td'))}</td><td>${escapeHtml(r.techId||'—')}</td><td>${escapeHtml(r.panelLot||'—')}</td><td><button class="btn sm" onclick="previewPhoenixQCReport('${r.id}')">👁 Xem trước</button><button class="btn sm" onclick="printPhoenixQCReport('${r.id}')">🖨 In PDF</button></td></tr>`
+    : `<tr><td>${i+1}</td><td>${escapeHtml(r.strain||'—')}</td><td>${virologyFmtDate(virologyRecordDate(r,'tc'))}</td><td>${escapeHtml(r.staff||Object.values(r.rowMeta||{}).find(x=>x?.staff)?.staff||'—')}</td><td>${escapeHtml(r.mediaLot||'—')}</td><td><button class="btn sm" onclick="previewVirologyTC('${r.id}')">👁 Xem trước</button><button class="btn sm" onclick="printVirologyTC('${r.id}')">🖨 In PDF</button></td></tr>`
   ).join('');
   host.innerHTML=`<div class="card" style="margin-top:12px"><div class="card-head"><div><h3>Danh sách QC Vi sinh đã nhập</h3><span class="hint">${isTD?'Danh sách QC Vi sinh (TĐ) đã nhập; chỉ hiển thị dữ liệu của module TĐ.':'Danh sách QC Vi sinh (TC) đã nhập; chỉ hiển thị dữ liệu của module TC.'}</span></div></div><div class="card-body"><div class="section-title">${isTD?'QC Vi sinh (TĐ)':'QC Vi sinh (TC)'} · ${data.length} phiếu</div><div class="table-wrap"><table><thead><tr>${isTD?'<th>#</th><th>Chủng / Panel</th><th>Ngày</th><th>Tech ID</th><th>Panel LOT</th><th>In</th>':'<th>#</th><th>Chủng</th><th>Ngày QC</th><th>Nhân viên</th><th>LOT</th><th>In</th>'}</tr></thead><tbody>${rows||`<tr><td colspan="6" class="muted">Chưa có dữ liệu phù hợp.</td></tr>`}</tbody></table></div></div></div>`;
 }
@@ -4133,7 +4133,7 @@ function renderVirologyTC(){
   virologyEnsureState();
   const el=document.getElementById('virologyHubPanel')||document.getElementById('view-virology-tc');
   const selected=el.dataset.strain||Object.keys(VIROLOGY_TEMPLATES)[0]; el.dataset.strain=selected;
-  el.innerHTML=`<div class="card"><div class="card-head"><div><h3>Nhập QC Vi sinh (TC)</h3><span class="hint">Mẫu biểu lấy theo khung bảng trong hồ sơ ảnh, người dùng tự nhập.</span></div><div class="btn-row"><select id="vtc_strain" onchange="changeVirologyStrain(this.value)">${Object.keys(VIROLOGY_TEMPLATES).map(k=>`<option value="${escapeHtml(k)}" ${k===selected?'selected':''}>${escapeHtml(k)}</option>`).join('')}</select><button class="btn ghost sm" onclick="openVirologyLotManager()">Quản lý LOT</button></div></div><div class="card-body" style="padding:12px">${virologyTCGridHtml(selected)}</div></div>`;
+  el.innerHTML=`<div class="card"><div class="card-head"><div><h3>Nhập QC Vi sinh (TC)</h3><span class="hint">Mẫu biểu lấy theo khung bảng trong hồ sơ ảnh; bỏ toàn bộ phần ghi tay, người dùng tự nhập.</span></div><div class="btn-row"><select id="vtc_strain" onchange="changeVirologyStrain(this.value)">${Object.keys(VIROLOGY_TEMPLATES).map(k=>`<option value="${escapeHtml(k)}" ${k===selected?'selected':''}>${escapeHtml(k)}</option>`).join('')}</select><button class="btn ghost sm" onclick="openVirologyLotManager()">Quản lý LOT</button></div></div><div class="card-body" style="padding:12px">${virologyTCGridHtml(selected)}</div></div>`;
   const lot=virologyLotFor(selected); const t=VIROLOGY_TEMPLATES[selected];
   t.antibiotics.forEach((_,i)=>{const x=state.virologyLots.find(v=>v.strain===selected);});
 }
@@ -4172,7 +4172,45 @@ function openVirologyLotManager(){
   showModal('Quản lý LOT QC Vi sinh',body,'wide');
 }
 function saveVirologyLotsManager(){Object.keys(VIROLOGY_TEMPLATES).forEach(k=>{const x=virologyLotFor(k);x.lot=document.getElementById('vlm_lot_'+encodeURIComponent(k))?.value.trim()||'';x.expDate=document.getElementById('vlm_exp_'+encodeURIComponent(k))?.value||'';x.updatedAt=new Date().toISOString();});state.audit.unshift({id:uid('AU'),time:new Date().toISOString(),user:state.settings.currentUser,action:'Cập nhật danh mục LOT QC Vi sinh',detail:'Cập nhật LOT/HSD cho các chủng QC'});queueSave();closeModal();renderVirologyHubPanel('virology-tc');toast('pass','Đã lưu danh mục LOT/HSD','LOT/HSD sẽ tự điền theo chủng.');}
+function previewVirologyTC(recordId){
+  virologyEnsureState();
+  const data=recordId?state.virologyTCResults.find(r=>r.id===recordId):collectVirologyTC();
+  if(!data?.strain){toast('warning','Không có dữ liệu','Không tìm thấy phiếu QC Vi sinh (TC).');return;}
+  const esc=v=>escapeHtml(v??''); const rm=data.rowMeta||{};
+  const rows=(data.antibiotics||[]).map(a=>`<tr><td><b>${esc(a.code||'')}</b><br>${esc(a.concentration||'')}</td><td>${esc(a.lot||'—')}</td><td>${esc(virologyFmtDate(a.expDate))}</td><td>${esc((a.results||[]).join(' / ')||'—')}</td></tr>`).join('');
+  const meta=Object.keys(rm).sort((a,b)=>Number(a)-Number(b)).map(k=>{const x=rm[k]||{};return `<tr><td>${k}</td><td>${esc(virologyFmtDate(x.ngaySX))}</td><td>${esc(virologyFmtDate(x.hsd))}</td><td>${esc(x.soQC||'—')}</td><td>${esc(x.evaluation||'—')}</td><td>${esc(virologyFmtDate(x.qcDate))}</td><td>${esc(x.staff||'—')}</td><td>${esc(x.note||'—')}</td></tr>`}).join('');
+  showModal('Xem trước · QC Vi sinh (TC)',`<div style="font-family:'Times New Roman',serif;font-size:12px"><div style="text-align:center"><b>BỆNH VIỆN PHONG - DA LIỄU TW QUY HÒA</b><h2 style="margin:6px 0">QC ĐĨA GIẤY KHÁNG SINH - MHA</h2></div><div style="margin:8px 0"><b>Chủng:</b> ${esc(data.strain)} &nbsp; <b>Ngày QC:</b> ${esc(virologyFmtDate(data.qcDate))} &nbsp; <b>Nhân viên:</b> ${esc(data.staff||'—')}</div><div style="margin:8px 0"><b>LOT môi trường:</b> ${esc(data.mediaLot||'—')} &nbsp; <b>HSD:</b> ${esc(virologyFmtDate(data.mediaExp))}</div><div class="table-wrap"><table><thead><tr><th>Kháng sinh</th><th>LOT</th><th>HSD</th><th>Kết quả QC (mm)</th></tr></thead><tbody>${rows}</tbody></table></div><div style="margin:10px 0 5px"><b>Chi tiết đã nhập</b></div><div class="table-wrap"><table><thead><tr><th>Lần</th><th>Ngày SX</th><th>HSD</th><th>SL QC</th><th>Đánh giá</th><th>Ngày QC</th><th>Nhân viên</th><th>Nhận xét / giám sát</th></tr></thead><tbody>${meta||'<tr><td colspan="8">—</td></tr>'}</tbody></table></div><div style="margin-top:8px"><b>Nhận xét:</b> ${esc(data.note||'—')}</div></div><div class="btn-row" style="margin-top:14px"><button class="btn primary" onclick="printVirologyTC('${esc(data.id||'')}');closeModal()">🖨 In PDF</button><button class="btn ghost" onclick="closeModal()">Đóng</button></div>`,'wide');
+}
+function previewPhoenixQCReport(recordId){
+  virologyEnsureState();
+  const d=recordId?state.virologyTDResults.find(r=>r.id===recordId):collectPhoenixQCReport();
+  if(!d){toast('warning','Không có dữ liệu','Không tìm thấy phiếu QC Vi sinh (TĐ).');return;}
+  const esc=v=>escapeHtml(v??'');
+  const labels={hospital:'BỆNH VIỆN',location:'ĐỊA ĐIỂM',panelLot:'Panel Lot Number',testStart:'Test Start',panelType:'Panel Type',status:'Status',idBrothLot:'ID Broth Lot Number',astBrothLot:'AST Broth Lot Number',indicatorLot:'Indicator Lot Number',panelExp:'Expiration Date',testEnd:'Test End',location2:'Location',techId:'Tech ID',idBrothExp:'Expiration Date',astBrothExp:'Expiration Date',indicatorExp:'Expiration Date',sequence:'Sequence Number',accession:'Accession Number',isolate:'Isolate Number',testStrain:'Test Strain',qcStatus:'QC Status',inoculum:'Inoculum Density',instrument:'Instrument ID(s)'};
+  const meta=Object.entries(d).filter(([k])=>!['biochemical','antimicrobial','id','createdAt','user','syncStatus','source'].includes(k)&&!Array.isArray(d[k])).map(([k,v])=>`<div><b>${esc(labels[k]||k)}</b><br>${esc(v||'—')}</div>`).join('');
+  const bio=(d.biochemical||[]).map(x=>`<tr><td>${esc(x?.name)}</td><td>${esc(x?.actual)}</td><td>${esc(x?.expected)}</td></tr>`).join('');
+  const ast=(d.antimicrobial||[]).map(x=>`<tr><td>${esc(x?.name)}</td><td>${esc(x?.actual)}</td><td>${esc(x?.expected)}</td><td>${esc(x?.status)}</td></tr>`).join('');
+  showModal('Xem trước · QC Vi sinh (TĐ)',`<div style="font-family:'Times New Roman',serif;font-size:12px"><div style="text-align:center"><b>BỆNH VIỆN</b><h2 style="margin:6px 0">QC Lab Report</h2></div><div class="two-col" style="gap:12px">${meta}</div><h3>Biochemical</h3><div class="table-wrap"><table><thead><tr><th>Biochemical</th><th>Actual</th><th>Expected</th></tr></thead><tbody>${bio}</tbody></table></div><h3>Antimicrobial</h3><div class="table-wrap"><table><thead><tr><th>Antimicrobial</th><th>Actual</th><th>Expected</th><th>Status</th></tr></thead><tbody>${ast}</tbody></table></div><h3>SPECIAL MESSAGES</h3><div style="white-space:pre-wrap;border:1px solid #ccc;padding:8px">${esc(d.specialMessages||'')}</div></div><div class="btn-row" style="margin-top:14px"><button class="btn primary" onclick="printPhoenixQCReport('${esc(d.id||'')}');closeModal()">🖨 In PDF</button><button class="btn ghost" onclick="closeModal()">Đóng</button></div>`,'wide');
+}
+
 function printVirologyTC(recordId){virologyEnsureState();const data=recordId?state.virologyTCResults.find(r=>r.id===recordId):collectVirologyTC();if(!data?.strain){toast('warning','Không có dữ liệu','Không tìm thấy phiếu QC Vi sinh (TC).');return;}const rm=data.rowMeta||{};const rows=(data.antibiotics||[]).map(a=>`<tr><td><b>${escapeHtml(a.code||'')}</b><br>${escapeHtml(a.concentration||'')}</td><td>${escapeHtml(a.lot||'—')}</td><td>${escapeHtml(virologyFmtDate(a.expDate))}</td><td>${escapeHtml((a.results||[]).join(' / ')||'—')}</td></tr>`).join('');const meta=Object.keys(rm).sort((a,b)=>Number(a)-Number(b)).map(k=>{const x=rm[k]||{};return `<tr><td>${k}</td><td>${escapeHtml(virologyFmtDate(x.ngaySX))}</td><td>${escapeHtml(virologyFmtDate(x.hsd))}</td><td>${escapeHtml(x.soQC||'—')}</td><td>${escapeHtml(x.evaluation||'—')}</td><td>${escapeHtml(virologyFmtDate(x.qcDate))}</td><td>${escapeHtml(x.staff||'—')}</td><td>${escapeHtml(x.note||'—')}</td></tr>`}).join('');const w=window.open('','_blank','width=1200,height=900');if(!w)return;w.document.write(`<!doctype html><html><head><title>QC Vi sinh (TC)</title><style>body{font-family:'Times New Roman',serif;margin:10mm;font-size:10px;color:#111}h1,h2{text-align:center}table{width:100%;border-collapse:collapse;margin:8px 0}th,td{border:1px solid #333;padding:4px;text-align:center;vertical-align:middle}th{background:#eee}@page{size:A4 landscape;margin:8mm}</style></head><body><h2>BỆNH VIỆN PHONG - DA LIỄU TW QUY HÒA</h2><h1>QC ĐĨA GIẤY KHÁNG SINH - MHA</h1><p><b>Chủng:</b> ${escapeHtml(data.strain)} &nbsp; <b>Ngày QC:</b> ${escapeHtml(virologyFmtDate(data.qcDate))} &nbsp; <b>Nhân viên:</b> ${escapeHtml(data.staff||'—')}</p><p><b>LOT môi trường:</b> ${escapeHtml(data.mediaLot||'—')} &nbsp; <b>HSD:</b> ${escapeHtml(virologyFmtDate(data.mediaExp))}</p><table><thead><tr><th>Kháng sinh</th><th>LOT</th><th>HSD</th><th>Kết quả QC (mm)</th></tr></thead><tbody>${rows}</tbody></table><b>Chi tiết đã nhập</b><table><thead><tr><th>Lần</th><th>Ngày SX</th><th>HSD</th><th>SL QC</th><th>Đánh giá</th><th>Ngày QC</th><th>Nhân viên</th><th>Nhận xét / giám sát</th></tr></thead><tbody>${meta||'<tr><td colspan="8">—</td></tr>'}</tbody></table><p><b>Nhận xét:</b> ${escapeHtml(data.note||'—')}</p></body></html>`);w.document.close();setTimeout(()=>w.print(),250);}
+
+function renderWhonetConnection(){
+  virologyEnsureState();
+  const el=document.getElementById('view-whonet'); if(!el)return;
+  const cfg=state.whonetConfig||{}; const logs=state.whonetSyncLogs||[];
+  const pending=logs.filter(x=>x.status==='pending').length; const synced=logs.filter(x=>x.status==='synced'||x.status==='completed').length;
+  el.innerHTML=`<div class="whonet-page">
+    <div class="card whonet-hero"><div class="card-head"><div><h3>Kết nối WHONET</h3><span class="hint">Cấu hình BacLink / WHONET độc lập với module Nhập QC Vi sinh (TĐ).</span></div><span class="pill ${cfg.baclinkFolder&&cfg.whonetFolder?'pass':'warning'}"><span class="dot"></span>${cfg.baclinkFolder&&cfg.whonetFolder?'Đã cấu hình':'Chưa cấu hình'}</span></div>
+    <div class="card-body"><div class="whonet-flow"><div><b>Nguồn dữ liệu</b><small>File đầu vào</small></div><span>→</span><div><b>BacLink</b><small>Chuẩn hóa & mapping</small></div><span>→</span><div><b>WHONET</b><small>Cơ sở dữ liệu</small></div></div></div></div>
+    <div class="grid g-kpi whonet-kpis" style="margin-top:14px"><div class="kpi"><div class="kpi-label">Cấu hình</div><div class="kpi-value">${cfg.onlineGatewayUrl&&cfg.baclinkFolder&&cfg.whonetFolder?'OK':'—'}</div><div class="kpi-sub">Online Gateway / BacLink / WHONET</div></div><div class="kpi"><div class="kpi-label">Đang chờ</div><div class="kpi-value">${pending}</div><div class="kpi-sub">Theo nhật ký WHONET</div></div><div class="kpi"><div class="kpi-label">Đã xử lý</div><div class="kpi-value">${synced}</div><div class="kpi-sub">Theo nhật ký WHONET</div></div></div>
+    <div class="two-col whonet-grid" style="margin-top:14px">
+      <div class="card"><div class="card-head"><h3>Cổng kết nối</h3><span class="hint">Cấu hình trên máy Windows có BacLink/WHONET</span></div><div class="card-body"><div class="whonet-settings"><div><b>Nguồn dữ liệu</b><span>${escapeHtml(cfg.source||'Chưa cấu hình')}</span></div><div><b>Thư mục BacLink</b><span>${escapeHtml(cfg.baclinkFolder||'Chưa cấu hình')}</span></div><div><b>Thư mục WHONET</b><span>${escapeHtml(cfg.whonetFolder||'Chưa cấu hình')}</span></div><div><b>Tự động xuất Tab-delimited</b><span>${cfg.autoExport?'Bật':'Tắt'}</span></div></div><div class="btn-row" style="margin-top:14px"><button class="btn primary" onclick="openWhonetConfig()">⚙ Cấu hình BacLink / WHONET</button></div></div></div>
+      <div class="card"><div class="card-head"><h3>Trạng thái kết nối</h3><span class="hint">Không lấy dữ liệu từ Nhập QC Vi sinh (TĐ)</span></div><div class="card-body"><div class="whonet-status-list"><div><span class="status-dot pass"></span><b>SMART QC</b><span>Cấu hình WHONET được lưu độc lập</span></div><div><span class="status-dot ${cfg.baclinkFolder?'pass':'warn'}"></span><b>BacLink</b><span>${cfg.baclinkFolder?'Đã cấu hình':'Chưa cấu hình'}</span></div><div><span class="status-dot ${cfg.whonetFolder?'pass':'warn'}"></span><b>WHONET</b><span>${cfg.whonetFolder?'Đã cấu hình':'Chưa cấu hình'}</span></div></div></div></div>
+    </div>
+    <div class="card" style="margin-top:14px"><div class="card-head"><h3>Nhật ký cổng kết nối</h3><span class="hint">${logs.length} lượt</span></div><div class="card-body"><div class="table-wrap"><table><thead><tr><th>Thời gian</th><th>Thao tác</th><th>File</th><th>Số dòng</th><th>Trạng thái</th></tr></thead><tbody>${logs.slice(0,100).map(x=>`<tr><td class="mono">${escapeHtml(x.time||'')}</td><td>${escapeHtml(x.action||'')}</td><td>${escapeHtml(x.file||'—')}</td><td>${escapeHtml(x.rows??'')}</td><td>${escapeHtml(x.status||'')}</td></tr>`).join('')||'<tr><td colspan="5" class="tbl-empty">Chưa có nhật ký.</td></tr>'}</tbody></table></div></div></div>
+  </div>`;
+}
 
 function renderVirologyHub(){
   const el=document.getElementById('view-virology'); if(!el)return;
