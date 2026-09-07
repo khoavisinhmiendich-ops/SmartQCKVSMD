@@ -1135,13 +1135,12 @@ function migrateState(){
      combobox "Chọn người dùng" bị rỗng sau khi dữ liệu cục bộ đã lưu
      một mảng users rỗng. */
   const defaultUsers=[
-    'TK. Nguyễn Thị Bình (ThsXN)',
-    'KTVTK. Nguyễn Thái Hòa (CKIXN)',
-    'NV. Nguyễn Gia Khang (CNXN)',
-    'NV. Bùi Thị Tiến Phước (CNXN)',
-    'NV. Trần Thị Cẩm Ly (CNXN)',
-    'NV. Nguyễn Thị Ngọc Trâm (CNXN)',
-    'NV. Lê Diệu Đan (CNXN)',
+    'TK. Nguyễn Thị Bình (Ths.XN)',
+    'KTVTK. Nguyễn Thái Hòa (CKI.XN)',
+    'NV. Nguyễn Gia Khang (CN.XN)',
+    'NV. Bùi Thị Tiến Phước (CN.XN)',
+    'NV. Trần Thị Cẩm Ly (CN.XN)',
+    'NV. Nguyễn Hồng Lợi (CN.XN)',
   ];
   if(!Array.isArray(state.settings.users) || state.settings.users.length===0){
     state.settings.users=[...defaultUsers];
@@ -1251,8 +1250,8 @@ function addResult({date,time,machineId,testId,lotId,level,value,user}, opts={})
 function buildInitialCatalog(){
   const s={ meta:{lastId:0},
     settings:{theme:'light', currentUser:null, currentRole:null,
-      users:['TK. Nguyễn Thị Bình (ThsXN)','KTVTK. Nguyễn Thái Hòa (CKIXN)','NV. Nguyễn Gia Khang (CNXN)','NV. Bùi Thị Tiến Phước (CNXN)',
-    'NV. Trần Thị Cẩm Ly (CNXN)','NV. Nguyễn Thị Ngọc Trâm (CNXN)','NV. Lê Diệu Đan (CNXN)'],
+      users:['TK. Nguyễn Thị Bình (Ths.XN)','KTVTK. Nguyễn Thái Hòa (CKI.XN)','NV. Nguyễn Gia Khang (CN.XN)','NV. Bùi Thị Tiến Phước (CN.XN)',
+    'NV. Trần Thị Cẩm Ly (CN.XN)','NV. Nguyễn Hồng Lợi (CN.XN)',],
       rules:{r12s:true,r13s:true,r22s:true,r4s:true,r41s:true,r10x:true}},
     machines:[], tests:[], lots:[], configs:[], results:[],
     rapidWaterTests:[], rapidWaterResults:[], rapidWaterLots:[], alerts:[], audit:[] };
@@ -1634,15 +1633,18 @@ function renderTrendChart(){
    NHẬP QC  (core flow)
    ===================================================================== */
 
+function getRapidWaterFilter(){if(!state.rapidWaterFilters) state.rapidWaterFilters={testId:''};return state.rapidWaterFilters;}
+function setRapidWaterTestFilter(testId){getRapidWaterFilter().testId=testId||'';renderRapidWaterEntry();}
+function getFilteredRapidWaterResults(){const f=getRapidWaterFilter();const rows=Array.isArray(state.rapidWaterResults)?state.rapidWaterResults.slice():[];return rows.filter(r=>!f.testId||r.testId===f.testId).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.createdAt||'').localeCompare(a.createdAt||''));}
 function renderRapidWaterEntry(){
   const el=document.getElementById('view-rapidwater-entry');
-  const recent=Array.isArray(state.rapidWaterResults)?state.rapidWaterResults.slice().reverse().slice(0,8):[];
+  const filter=getRapidWaterFilter(); const recent=getFilteredRapidWaterResults().slice(0,8);
   el.innerHTML=`
     <div class="card">
       <div class="card-head">
         <div>
           <h3>Nhập kết quả QC — Test nhanh & Test nước</h3>
-          <span class="hint">Biểu mẫu theo phiếu XN-BM 5.8.5/01 · chứng Âm / chứng Dương · 2 lần chạy</span>
+          <span class="hint">Biểu mẫu theo phiếu BM 02–TDNoK–V1 · chứng Âm / chứng Dương · 2 lần chạy</span>
         </div>
       </div>
       <div class="card-body">
@@ -1702,7 +1704,7 @@ function renderRapidWaterEntry(){
     </div>
 
     <div class="card" style="margin-top:16px;">
-      <div class="card-head"><h3>Kết quả Test nhanh & Test nước gần đây</h3><span class="hint">${recent.length} phiếu gần nhất</span></div>
+      <div class="card-head"><div><h3>Kết quả Test nhanh & Test nước gần đây</h3><span class="hint">${recent.length} phiếu phù hợp với bộ lọc</span></div><div class="btn-row"><label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600"><span>Lọc theo xét nghiệm</span><select onchange="setRapidWaterTestFilter(this.value)" style="min-width:220px"><option value="">Tất cả xét nghiệm</option>${state.rapidWaterTests.map(t=>`<option value="${t.id}" ${filter.testId===t.id?'selected':''}>${escapeHtml(t.name)} · ${escapeHtml(t.category)}</option>`).join('')}</select></label><button class="btn ghost sm" onclick="setRapidWaterTestFilter('')">Xóa lọc</button></div></div>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Ngày</th><th>Xét nghiệm</th><th>Loại</th><th>Lần 1</th><th>Lần 2</th><th>Người thực hiện</th><th>Ghi chú</th></tr></thead>
@@ -1722,6 +1724,9 @@ function printRapidWaterQC(){
   try{
     const val=id=>document.getElementById(id)?.value||'';
     const currentTestId=val('rw_test');
+    const rapidFilter=getRapidWaterFilter();
+    const filteredRows=getFilteredRapidWaterResults();
+    const filteredLatest=rapidFilter.testId && filteredRows.length ? filteredRows[0] : null;
     const latest=Array.isArray(state.rapidWaterResults) && state.rapidWaterResults.length
       ? state.rapidWaterResults[state.rapidWaterResults.length-1] : null;
 
@@ -1732,7 +1737,7 @@ function printRapidWaterQC(){
      * - Có chọn xét nghiệm trên form: ưu tiên dữ liệu đang nhập.
      * - Form chưa có xét nghiệm nhưng có phiếu đã lưu: dùng phiếu mới nhất.
      */
-    const saved = (!currentTestId && latest) ? latest : null;
+    const saved = filteredLatest || ((!currentTestId && latest) ? latest : null);
     const data = saved || {
       month:val('rw_month'), date:val('rw_date'), testId:currentTestId,
       method:val('rw_method'), manufacturer:val('rw_manufacturer'),
@@ -1751,7 +1756,7 @@ function printRapidWaterQC(){
       <div id="rapidWaterPrintSheet" class="rapid-water-print-sheet">
         <div class="rw-print-top">
           <div class="rw-org"><b>BỆNH VIỆN PHONG - DA LIỄU TRUNG ƯƠNG QUY HÒA</b><br><b>KHOA VI SINH – MIỄN DỊCH</b></div>
-          <div class="rw-title"><b>PHIẾU KẾT QUẢ<br>NỘI KIỂM XÉT NGHIỆM ĐỊNH TÍNH</b><br><span>THÁNG ${field(monthText)}</span></div>
+          <div class="rw-title"><b>PHIẾU THEO DÕI<br>KẾT QUẢ NỘI KIỂM</b><br><span>THÁNG ${field(monthText)}</span></div>
         </div>
         <div class="rw-meta">
           <div><b>Tên Xét nghiệm:</b> ${field(test?.name,'................................................')}</div>
@@ -1778,9 +1783,7 @@ function printRapidWaterQC(){
           <p><b>* Hành động khắc phục (nếu có sự không phù hợp):</b></p><div>${field(data.corrective)}</div>
           <p><b>* Hành động phòng ngừa (nếu có):</b></p><div>${field(data.preventive)}</div>
         </div>
-        <div class="rw-sign-date" id="rw-sign-date">
-    Gia Lai, Ngày .... tháng .... năm ........
-</div>
+        <div class="rw-sign-date">......, Ngày .... tháng .... năm ........</div>
         <div class="rw-sign"><div><b>Người thực hiện</b><br><br>${field(data.performer)}</div><div><b>Người xem xét</b><br><br>${field(data.reviewer)}</div></div>
         <div class="rw-print-footer" aria-label="Chân trang phiếu in">
           <div class="left">XN-BM 5.8.5/01</div>
@@ -3144,13 +3147,12 @@ function bootApp(){
     : [];
   if(users.length===0){
     state.settings.users=[
-      'TK. Nguyễn Thị Bình (ThsXN)',
-      'KTVTK. Nguyễn Thái Hòa (CKIXN)',
-      'NV. Nguyễn Gia Khang (CNXN)',
-      'NV. Bùi Thị Tiến Phước (CNXN)',
-      'NV. Trần Thị Cẩm Ly (CNXN)',
-      'NV. Nguyễn Thị Ngọc Trâm (CNXN)',
-      'NV. Lê Diệu Đan (CNXN)',
+      'TK. Nguyễn Thị Bình (Ths.XN)',
+      'KTVTK. Nguyễn Thái Hòa (CKI.XN)',
+      'NV. Nguyễn Gia Khang (CN.XN)',
+      'NV. Bùi Thị Tiến Phước (CN.XN)',
+      'NV. Trần Thị Cẩm Ly (CN.XN)',
+      'NV. Nguyễn Hồng Lợi (CN.XN)',
     ];
   }
   sel.innerHTML=state.settings.users
@@ -4021,6 +4023,7 @@ function exportReportCSV(){return exportReportXLSX();}
   if(!Array.isArray(state.virologyLots)) state.virologyLots=[];
   if(!Array.isArray(state.virologyTCResults)) state.virologyTCResults=[];
   if(!Array.isArray(state.virologyTDResults)) state.virologyTDResults=[];
+  if(!state.virologyFilters) state.virologyFilters={tc:'',td:''};
   if(!Array.isArray(state.whonetSyncLogs)) state.whonetSyncLogs=[];
   if(!Array.isArray(state.phoenixProcessedFiles)) state.phoenixProcessedFiles=[];
   if(!state.whonetConfig) state.whonetConfig={enabled:false,source:'BD EpiCenter / Phoenix BD M50',baclinkFolder:'',whonetFolder:'',autoExport:false,phoenixWatch:false,phoenixWatchFolder:'',onlineGatewayUrl:'',agentId:'',agentStatus:'Chưa kết nối',pushToApp:true,pushToBacLink:true,whonetAutoImport:true,sharedKey:''};
@@ -4034,6 +4037,7 @@ function virologyEnsureState(){
   if(!Array.isArray(state.virologyLots)) state.virologyLots=[];
   if(!Array.isArray(state.virologyTCResults)) state.virologyTCResults=[];
   if(!Array.isArray(state.virologyTDResults)) state.virologyTDResults=[];
+  if(!state.virologyFilters) state.virologyFilters={tc:'',td:''};
   if(!Array.isArray(state.whonetSyncLogs)) state.whonetSyncLogs=[];
   if(!Array.isArray(state.phoenixProcessedFiles)) state.phoenixProcessedFiles=[];
   if(!state.whonetConfig) state.whonetConfig={enabled:false,source:'BD EpiCenter / Phoenix BD M50',baclinkFolder:'',whonetFolder:'',autoExport:false,phoenixWatch:false,phoenixWatchFolder:'',onlineGatewayUrl:'',agentId:'',agentStatus:'Chưa kết nối',pushToApp:true,pushToBacLink:true,whonetAutoImport:true,sharedKey:''};
@@ -4070,6 +4074,24 @@ function virologyLotStatus(x){
   return {key:'active',label:'Còn hạn'};
 }
 function virologyLotPill(x){const st=virologyLotStatus(x);return st.key==='expired'?'<span class="pill reject"><span class="dot"></span>Hết hạn</span>':st.key==='soon'?'<span class="pill warning"><span class="dot"></span>Sắp hết hạn</span>':st.key==='missing'?'<span class="pill neutral"><span class="dot"></span>Chưa có Lot</span>':'<span class="pill pass"><span class="dot"></span>Còn hạn</span>';}
+function virologyFmtDate(v){if(!v)return '—';const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}/${m[2]}/${m[1]}`:String(v);}
+function virologyFilterControls(kind){const val=state.virologyFilters?.[kind]||'';return `<div class="btn-row virology-filter-row" style="align-items:center;margin-left:4px"><label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600">Lọc ngày <input type="date" value="${escapeHtml(val.length===10?val:'')}" onchange="setVirologyFilter('${kind}',this.value)" style="width:145px"></label><button class="btn ghost sm" onclick="setVirologyFilter('${kind}','')">Xóa lọc</button></div>`;}
+function setVirologyFilter(kind,value){virologyEnsureState();state.virologyFilters[kind]=value||'';if(kind==='tc')renderVirologyHubPanel('virology-tc');else renderVirologyHubPanel('virology-td');renderVirologyHistoryPanel(kind);}
+function virologyRecordDate(r,kind){return kind==='tc'?(r?.qcDate||Object.values(r?.rowMeta||{}).find(x=>x?.qcDate)?.qcDate||r?.createdAt||''):(r?.testStart||r?.createdAt||'');}
+function virologyMatchesFilter(r,kind){const f=state.virologyFilters?.[kind]||'';if(!f)return true;return virologyRecordDate(r,kind).slice(0,f.length)===f;}
+function renderVirologyHistoryPanel(kind){
+  virologyEnsureState();
+  const host=document.getElementById('virologyHistoryPanel'); if(!host)return;
+  const active=(kind==='virology-td'||kind==='td')?'td':'tc';
+  const isTD=active==='td';
+  const data=(isTD?state.virologyTDResults:state.virologyTCResults).filter(r=>virologyMatchesFilter(r,active));
+  const rows=data.slice(0,100).map((r,i)=>isTD
+    ? `<tr><td>${i+1}</td><td>${escapeHtml(r.testStrain||r.panelType||'—')}</td><td>${virologyFmtDate(virologyRecordDate(r,'td'))}</td><td>${escapeHtml(r.techId||'—')}</td><td>${escapeHtml(r.panelLot||'—')}</td><td><button class="btn sm" onclick="printPhoenixQCReport('${r.id}')">🖨 In PDF</button></td></tr>`
+    : `<tr><td>${i+1}</td><td>${escapeHtml(r.strain||'—')}</td><td>${virologyFmtDate(virologyRecordDate(r,'tc'))}</td><td>${escapeHtml(r.staff||Object.values(r.rowMeta||{}).find(x=>x?.staff)?.staff||'—')}</td><td>${escapeHtml(r.mediaLot||'—')}</td><td><button class="btn sm" onclick="printVirologyTC('${r.id}')">🖨 In PDF</button></td></tr>`
+  ).join('');
+  host.innerHTML=`<div class="card" style="margin-top:12px"><div class="card-head"><div><h3>Danh sách QC Vi sinh đã nhập</h3><span class="hint">${isTD?'Danh sách QC Vi sinh (TĐ) đã nhập; chỉ hiển thị dữ liệu của module TĐ.':'Danh sách QC Vi sinh (TC) đã nhập; chỉ hiển thị dữ liệu của module TC.'}</span></div></div><div class="card-body"><div class="section-title">${isTD?'QC Vi sinh (TĐ)':'QC Vi sinh (TC)'} · ${data.length} phiếu</div><div class="table-wrap"><table><thead><tr>${isTD?'<th>#</th><th>Chủng / Panel</th><th>Ngày</th><th>Tech ID</th><th>Panel LOT</th><th>In</th>':'<th>#</th><th>Chủng</th><th>Ngày QC</th><th>Nhân viên</th><th>LOT</th><th>In</th>'}</tr></thead><tbody>${rows||`<tr><td colspan="6" class="muted">Chưa có dữ liệu phù hợp.</td></tr>`}</tbody></table></div></div></div>`;
+}
+
 function virologyTCGridHtml(strain, values){
   const t=VIROLOGY_TEMPLATES[strain]||VIROLOGY_TEMPLATES['Escherichia coli ATCC 25922'];
   const lot=virologyLotFor(strain);
@@ -4102,14 +4124,14 @@ function virologyTCGridHtml(strain, values){
       ${resultRows}
     </tbody></table></div>
     <div class="virology-codes"><b>Mã kháng sinh:</b> ${escapeHtml(t.codes)}</div>
-    <div class="btn-row" style="margin-top:12px"><button class="btn primary" onclick="saveVirologyTC()">Lưu QC Vi sinh (TC)</button><button class="btn" onclick="printVirologyTC()">🖨 In / Xuất PDF</button><button class="btn ghost" onclick="resetVirologyTCInputs()">Xoá ô nhập</button></div>
+    <div class="btn-row" style="margin-top:12px"><button class="btn primary" onclick="saveVirologyTC()">Lưu QC Vi sinh (TC)</button><button class="btn ghost" onclick="resetVirologyTCInputs()">Xoá ô nhập</button></div>
   </div>`;
 }
 function renderVirologyTC(){
   virologyEnsureState();
   const el=document.getElementById('virologyHubPanel')||document.getElementById('view-virology-tc');
   const selected=el.dataset.strain||Object.keys(VIROLOGY_TEMPLATES)[0]; el.dataset.strain=selected;
-  el.innerHTML=`<div class="card"><div class="card-head"><div><h3>Nhập QC Vi sinh (TC)</h3><span class="hint">Mẫu biểu lấy theo khung bảng trong hồ sơ ảnh, người dùng tự nhập.</span></div><div class="btn-row"><select id="vtc_strain" onchange="changeVirologyStrain(this.value)">${Object.keys(VIROLOGY_TEMPLATES).map(k=>`<option value="${escapeHtml(k)}" ${k===selected?'selected':''}>${escapeHtml(k)}</option>`).join('')}</select><button class="btn ghost sm" onclick="openVirologyLotManager()">Quản lý LOT</button></div></div><div class="card-body" style="padding:12px">${virologyTCGridHtml(selected)}</div></div>`;
+  el.innerHTML=`<div class="card"><div class="card-head"><div><h3>Nhập QC Vi sinh (TC)</h3><span class="hint">Mẫu biểu lấy theo khung bảng trong hồ sơ ảnh; bỏ toàn bộ phần ghi tay, người dùng tự nhập.</span></div><div class="btn-row"><select id="vtc_strain" onchange="changeVirologyStrain(this.value)">${Object.keys(VIROLOGY_TEMPLATES).map(k=>`<option value="${escapeHtml(k)}" ${k===selected?'selected':''}>${escapeHtml(k)}</option>`).join('')}</select><button class="btn ghost sm" onclick="openVirologyLotManager()">Quản lý LOT</button></div></div><div class="card-body" style="padding:12px">${virologyTCGridHtml(selected)}</div></div>`;
   const lot=virologyLotFor(selected); const t=VIROLOGY_TEMPLATES[selected];
   t.antibiotics.forEach((_,i)=>{const x=state.virologyLots.find(v=>v.strain===selected);});
 }
@@ -4139,7 +4161,7 @@ function saveVirologyTC(){
   const data=collectVirologyTC(); if(!data.strain||!data.staff){toast('warning','Thiếu thông tin','Chọn chủng và nhập Nhân viên ở ít nhất một hàng.');return;}
   const lot=virologyLotFor(data.strain); if(data.mediaLot){lot.lot=data.mediaLot;lot.expDate=data.mediaExp;}
   data.id=uid('VTC');data.createdAt=new Date().toISOString();data.user=state.settings.currentUser;state.virologyTCResults.unshift(data);
-  state.audit.unshift({id:uid('AU'),time:new Date().toISOString(),user:state.settings.currentUser,action:'Nhập QC Vi sinh (TC)',detail:`${data.strain} · LOT ${data.mediaLot||'—'} · ${data.qcDate}`});queueSave();toast('pass','Đã lưu QC Vi sinh (TC)','Dữ liệu được lưu và đồng bộ theo cơ chế lưu hiện tại.');
+  state.audit.unshift({id:uid('AU'),time:new Date().toISOString(),user:state.settings.currentUser,action:'Nhập QC Vi sinh (TC)',detail:`${data.strain} · LOT ${data.mediaLot||'—'} · ${data.qcDate}`});queueSave();renderVirologyHistoryPanel('tc');toast('pass','Đã lưu QC Vi sinh (TC)','Dữ liệu được lưu và đồng bộ theo cơ chế lưu hiện tại.');
 }
 function resetVirologyTCInputs(){const root=document.getElementById('virologyHubPanel')||document.getElementById('view-virology-tc');root?.querySelectorAll('input.vtc-result,input.vtc-abx-lot,input.vtc-abx-exp,input.vtc-meta-date,input.vtc-meta-hsd,input.vtc-meta-qty,input.vtc-row-eval,input.vtc-row-date,input.vtc-row-staff,textarea').forEach(x=>x.value=''); root?.querySelectorAll('input.vtc-row-date').forEach(x=>x.value=todayISO());}
 function openVirologyLotManager(){
@@ -4148,40 +4170,19 @@ function openVirologyLotManager(){
   showModal('Quản lý LOT QC Vi sinh',body,'wide');
 }
 function saveVirologyLotsManager(){Object.keys(VIROLOGY_TEMPLATES).forEach(k=>{const x=virologyLotFor(k);x.lot=document.getElementById('vlm_lot_'+encodeURIComponent(k))?.value.trim()||'';x.expDate=document.getElementById('vlm_exp_'+encodeURIComponent(k))?.value||'';x.updatedAt=new Date().toISOString();});state.audit.unshift({id:uid('AU'),time:new Date().toISOString(),user:state.settings.currentUser,action:'Cập nhật danh mục LOT QC Vi sinh',detail:'Cập nhật LOT/HSD cho các chủng QC'});queueSave();closeModal();renderVirologyHubPanel('virology-tc');toast('pass','Đã lưu danh mục LOT/HSD','LOT/HSD sẽ tự điền theo chủng.');}
-function printVirologyTC(){
-  const data=collectVirologyTC();
-  const t=VIROLOGY_TEMPLATES[data.strain];
-  const rows=data.antibiotics.map(a=>`<tr><td><b>${escapeHtml(a.code)}</b><br>${escapeHtml(a.concentration)}</td><td>${escapeHtml(a.lot||'—')}</td><td>${escapeHtml(a.expDate||'—')}</td><td>${escapeHtml(a.results.join(' / ')||'')}</td></tr>`).join('');
-  const w=window.open('','_blank','width=1200,height=900');if(!w){toast('warning','Không mở được cửa sổ in','Trình duyệt đang chặn popup.');return;}
-  w.document.write(`<!doctype html><html><head><title>QC Vi sinh - ${escapeHtml(data.strain)}</title><style>body{font-family:'Times New Roman',serif;margin:14mm;color:#111;font-size:11px}h2,h3{text-align:center;margin:2px}.meta{margin:10px 0;display:grid;grid-template-columns:1fr 1fr;gap:5px 20px}.meta b{font-weight:700}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #333;padding:5px;text-align:center;vertical-align:middle;word-break:break-word}th{background:#f1f1f1}th:nth-child(1){width:18%}.foot{margin-top:10px;line-height:1.45}@page{size:A4 portrait;margin:10mm}</style></head><body><h3>BỆNH VIỆN PHONG - DA LIỄU TW QUY HÒA</h3><h3>KHOA: VI SINH - MIỄN DỊCH</h3><h2>QC ĐĨA GIẤY KHÁNG SINH - MÔI TRƯỜNG MUELLER HINTON AGAR (MHA)</h2><p style="text-align:center">Giới hạn cho phép đối với chủng <b>${escapeHtml(t.title)}</b></p><div class="meta"><div><b>Môi trường LOT:</b> ${escapeHtml(data.mediaLot||'—')}</div><div><b>HSD:</b> ${escapeHtml(data.mediaExp||'—')}</div><div><b>Ngày QC:</b> ${escapeHtml(data.qcDate)}</div><div><b>Nhân viên:</b> ${escapeHtml(data.staff||'—')}</div><div><b>Bệnh giả:</b> ${escapeHtml(data.patient||'—')}</div><div><b>Nhận xét:</b> ${escapeHtml(data.note||'—')}</div></div><table><thead><tr><th>Kháng sinh</th><th>LOT</th><th>HSD</th><th>Kết quả QC (mm)</th></tr></thead><tbody>${rows}</tbody></table><div class="foot"><b>Mã kháng sinh:</b> ${escapeHtml(t.codes)}</div></body></html>`);w.document.close();setTimeout(()=>w.print(),200);
-}
-
-function renderWhonetConnection(){
-  virologyEnsureState();
-  const el=document.getElementById('view-whonet'); if(!el)return;
-  const cfg=state.whonetConfig||{}; const logs=state.whonetSyncLogs||[];
-  const pending=logs.filter(x=>x.status==='pending').length; const synced=logs.filter(x=>x.status==='synced'||x.status==='completed').length;
-  el.innerHTML=`<div class="whonet-page">
-    <div class="card whonet-hero"><div class="card-head"><div><h3>Kết nối WHONET</h3><span class="hint">Cấu hình BacLink / WHONET độc lập với module Nhập QC Vi sinh (TĐ).</span></div><span class="pill ${cfg.baclinkFolder&&cfg.whonetFolder?'pass':'warning'}"><span class="dot"></span>${cfg.baclinkFolder&&cfg.whonetFolder?'Đã cấu hình':'Chưa cấu hình'}</span></div>
-    <div class="card-body"><div class="whonet-flow"><div><b>Nguồn dữ liệu</b><small>File đầu vào</small></div><span>→</span><div><b>BacLink</b><small>Chuẩn hóa & mapping</small></div><span>→</span><div><b>WHONET</b><small>Cơ sở dữ liệu</small></div></div></div></div>
-    <div class="grid g-kpi whonet-kpis" style="margin-top:14px"><div class="kpi"><div class="kpi-label">Cấu hình</div><div class="kpi-value">${cfg.onlineGatewayUrl&&cfg.baclinkFolder&&cfg.whonetFolder?'OK':'—'}</div><div class="kpi-sub">Online Gateway / BacLink / WHONET</div></div><div class="kpi"><div class="kpi-label">Đang chờ</div><div class="kpi-value">${pending}</div><div class="kpi-sub">Theo nhật ký WHONET</div></div><div class="kpi"><div class="kpi-label">Đã xử lý</div><div class="kpi-value">${synced}</div><div class="kpi-sub">Theo nhật ký WHONET</div></div></div>
-    <div class="two-col whonet-grid" style="margin-top:14px">
-      <div class="card"><div class="card-head"><h3>Cổng kết nối</h3><span class="hint">Cấu hình trên máy Windows có BacLink/WHONET</span></div><div class="card-body"><div class="whonet-settings"><div><b>Nguồn dữ liệu</b><span>${escapeHtml(cfg.source||'Chưa cấu hình')}</span></div><div><b>Thư mục BacLink</b><span>${escapeHtml(cfg.baclinkFolder||'Chưa cấu hình')}</span></div><div><b>Thư mục WHONET</b><span>${escapeHtml(cfg.whonetFolder||'Chưa cấu hình')}</span></div><div><b>Tự động xuất Tab-delimited</b><span>${cfg.autoExport?'Bật':'Tắt'}</span></div></div><div class="btn-row" style="margin-top:14px"><button class="btn primary" onclick="openWhonetConfig()">⚙ Cấu hình BacLink / WHONET</button></div></div></div>
-      <div class="card"><div class="card-head"><h3>Trạng thái kết nối</h3><span class="hint">Không lấy dữ liệu từ Nhập QC Vi sinh (TĐ)</span></div><div class="card-body"><div class="whonet-status-list"><div><span class="status-dot pass"></span><b>SMART QC</b><span>Cấu hình WHONET được lưu độc lập</span></div><div><span class="status-dot ${cfg.baclinkFolder?'pass':'warn'}"></span><b>BacLink</b><span>${cfg.baclinkFolder?'Đã cấu hình':'Chưa cấu hình'}</span></div><div><span class="status-dot ${cfg.whonetFolder?'pass':'warn'}"></span><b>WHONET</b><span>${cfg.whonetFolder?'Đã cấu hình':'Chưa cấu hình'}</span></div></div></div></div>
-    </div>
-    <div class="card" style="margin-top:14px"><div class="card-head"><h3>Nhật ký cổng kết nối</h3><span class="hint">${logs.length} lượt</span></div><div class="card-body"><div class="table-wrap"><table><thead><tr><th>Thời gian</th><th>Thao tác</th><th>File</th><th>Số dòng</th><th>Trạng thái</th></tr></thead><tbody>${logs.slice(0,100).map(x=>`<tr><td class="mono">${escapeHtml(x.time||'')}</td><td>${escapeHtml(x.action||'')}</td><td>${escapeHtml(x.file||'—')}</td><td>${escapeHtml(x.rows??'')}</td><td>${escapeHtml(x.status||'')}</td></tr>`).join('')||'<tr><td colspan="5" class="tbl-empty">Chưa có nhật ký.</td></tr>'}</tbody></table></div></div></div>
-  </div>`;
-}
+function printVirologyTC(recordId){virologyEnsureState();const data=recordId?state.virologyTCResults.find(r=>r.id===recordId):collectVirologyTC();if(!data?.strain){toast('warning','Không có dữ liệu','Không tìm thấy phiếu QC Vi sinh (TC).');return;}const rm=data.rowMeta||{};const rows=(data.antibiotics||[]).map(a=>`<tr><td><b>${escapeHtml(a.code||'')}</b><br>${escapeHtml(a.concentration||'')}</td><td>${escapeHtml(a.lot||'—')}</td><td>${escapeHtml(virologyFmtDate(a.expDate))}</td><td>${escapeHtml((a.results||[]).join(' / ')||'—')}</td></tr>`).join('');const meta=Object.keys(rm).sort((a,b)=>Number(a)-Number(b)).map(k=>{const x=rm[k]||{};return `<tr><td>${k}</td><td>${escapeHtml(virologyFmtDate(x.ngaySX))}</td><td>${escapeHtml(virologyFmtDate(x.hsd))}</td><td>${escapeHtml(x.soQC||'—')}</td><td>${escapeHtml(x.evaluation||'—')}</td><td>${escapeHtml(virologyFmtDate(x.qcDate))}</td><td>${escapeHtml(x.staff||'—')}</td><td>${escapeHtml(x.note||'—')}</td></tr>`}).join('');const w=window.open('','_blank','width=1200,height=900');if(!w)return;w.document.write(`<!doctype html><html><head><title>QC Vi sinh (TC)</title><style>body{font-family:'Times New Roman',serif;margin:10mm;font-size:10px;color:#111}h1,h2{text-align:center}table{width:100%;border-collapse:collapse;margin:8px 0}th,td{border:1px solid #333;padding:4px;text-align:center;vertical-align:middle}th{background:#eee}@page{size:A4 landscape;margin:8mm}</style></head><body><h2>BỆNH VIỆN PHONG - DA LIỄU TW QUY HÒA</h2><h1>QC ĐĨA GIẤY KHÁNG SINH - MHA</h1><p><b>Chủng:</b> ${escapeHtml(data.strain)} &nbsp; <b>Ngày QC:</b> ${escapeHtml(virologyFmtDate(data.qcDate))} &nbsp; <b>Nhân viên:</b> ${escapeHtml(data.staff||'—')}</p><p><b>LOT môi trường:</b> ${escapeHtml(data.mediaLot||'—')} &nbsp; <b>HSD:</b> ${escapeHtml(virologyFmtDate(data.mediaExp))}</p><table><thead><tr><th>Kháng sinh</th><th>LOT</th><th>HSD</th><th>Kết quả QC (mm)</th></tr></thead><tbody>${rows}</tbody></table><b>Chi tiết đã nhập</b><table><thead><tr><th>Lần</th><th>Ngày SX</th><th>HSD</th><th>SL QC</th><th>Đánh giá</th><th>Ngày QC</th><th>Nhân viên</th><th>Nhận xét / giám sát</th></tr></thead><tbody>${meta||'<tr><td colspan="8">—</td></tr>'}</tbody></table><p><b>Nhận xét:</b> ${escapeHtml(data.note||'—')}</p></body></html>`);w.document.close();setTimeout(()=>w.print(),250);}
 
 function renderVirologyHub(){
-  const el=document.getElementById('view-virology');
-  if(!el)return;
-  const active=(currentView==='virology-td')?'virology-td':'virology-tc';
+  const el=document.getElementById('view-virology'); if(!el)return;
+  if(currentView==='virology-tc' || currentView==='virology-td'){
+    el.innerHTML=`<div id="virologyHubPanel" class="virology-panel"></div>`;
+    renderVirologyHubPanel(currentView);
+    return;
+  }
   el.innerHTML=`<div class="card"><div class="card-head"><div><h3>Nhập QC Vi sinh</h3><span class="hint">Chọn loại QC cần nhập. Nội dung và dữ liệu của từng phần được giữ riêng, đồng bộ theo cơ chế lưu hiện tại.</span></div></div><div class="card-body"><div class="virology-hub">
-    <div class="virology-hub-card ${active==='virology-tc'?'active':''}" onclick="openVirologySection('virology-tc')"><div class="virology-hub-icon">${iconFlask()}</div><h3>Nhập QC Vi sinh (TC)</h3><p>QC đĩa giấy kháng sinh — Môi trường Mueller Hinton Agar (MHA).</p></div>
-    <div class="virology-hub-card ${active==='virology-td'?'active':''}" onclick="openVirologySection('virology-td')"><div class="virology-hub-icon">${iconServer()}</div><h3>Nhập QC Vi sinh (TĐ)</h3><p>QC Lab Report từ Phoenix BD M50 — nhập tiêu đề/khung báo cáo, để trống toàn bộ kết quả để tự điền.</p></div>
-  </div><div id="virologyHubPanel" class="virology-panel"></div></div></div>`;
-  renderVirologyHubPanel(active);
+    <div class="virology-hub-card" onclick="openVirologySection('virology-tc')"><div class="virology-hub-icon">${iconFlask()}</div><h3>Nhập QC Vi sinh (TC)</h3><p>QC đĩa giấy kháng sinh — Môi trường Mueller Hinton Agar (MHA).</p></div>
+    <div class="virology-hub-card" onclick="openVirologySection('virology-td')"><div class="virology-hub-icon">${iconServer()}</div><h3>Nhập QC Vi sinh (TĐ)</h3><p>QC Lab Report từ Phoenix BD M50 — nhập tiêu đề/khung báo cáo, để trống toàn bộ kết quả để tự điền.</p></div>
+  </div></div></div>`;
 }
 function openVirologySection(section){
   currentView=section;
@@ -4196,6 +4197,9 @@ function renderVirologyHubPanel(section){
   }else{
     renderVirologyTC(panel);
   }
+  let h=document.getElementById('virologyHistoryPanel');
+  if(!h){h=document.createElement('div');h.id='virologyHistoryPanel';panel.appendChild(h);}
+  renderVirologyHistoryPanel(section);
 }
 function renderVirologyTD(targetEl){
   virologyEnsureState();
@@ -4231,7 +4235,7 @@ function renderVirologyTD(targetEl){
         <div class="phoenix-td-info"><span><b>Thư mục:</b> <em id="phoenixWatchFolder">Chưa chọn</em></span><span><b>Định dạng:</b> TXT / CSV / TSV / JSON</span><span><b>Tần suất:</b> tự kiểm tra mỗi 3 giây khi cổng đang mở</span></div>
       </div>
     </div>
-    <div class="td-actions"><button class="btn primary" onclick="savePhoenixQCReport()">Lưu QC Vi sinh (TĐ)</button><button class="btn" onclick="printPhoenixQCReport()">🖨 In / Xuất PDF</button><button class="btn ghost" onclick="resetPhoenixQCReport()">Xoá ô nhập</button></div>
+    <div class="td-actions"><button class="btn primary" onclick="savePhoenixQCReport()">Lưu QC Vi sinh (TĐ)</button><button class="btn ghost" onclick="resetPhoenixQCReport()">Xoá ô nhập</button></div>
   </div>`;
   updatePhoenixWatchFolderLabel();
   if(phoenixWatchHandle) setPhoenixWatchStatus('pass','Đang tự động nhận KQ');
@@ -4344,20 +4348,12 @@ function collectPhoenixQCReport(){
 }
 function savePhoenixQCReport(){
   const data=collectPhoenixQCReport();data.id=uid('VTD');data.createdAt=new Date().toISOString();data.user=state.settings.currentUser;data.syncStatus='pending';data.source='Phoenix BD M50 / QC Lab Report';
-  state.virologyTDResults.unshift(data);state.audit.unshift({id:uid('AU'),time:new Date().toISOString(),user:state.settings.currentUser,action:'Nhập QC Vi sinh (TĐ)',detail:'Lưu khung QC Lab Report Phoenix BD M50'});queueSave();toast('pass','Đã lưu QC Vi sinh (TĐ)','Dữ liệu được lưu và đồng bộ theo cơ chế hiện tại.');
+  state.virologyTDResults.unshift(data);state.audit.unshift({id:uid('AU'),time:new Date().toISOString(),user:state.settings.currentUser,action:'Nhập QC Vi sinh (TĐ)',detail:'Lưu khung QC Lab Report Phoenix BD M50'});queueSave();renderVirologyHistoryPanel('td');toast('pass','Đã lưu QC Vi sinh (TĐ)','Dữ liệu được lưu và đồng bộ theo cơ chế hiện tại.');
 }
 function resetPhoenixQCReport(){
   const root=document.getElementById('virologyHubPanel');root?.querySelectorAll('[data-td-field], [data-td-bio], [data-td-bio-exp], [data-td-ast], [data-td-ast-exp], [data-td-ast-status]').forEach(x=>x.value='');
 }
-function printPhoenixQCReport(){
-  const d=collectPhoenixQCReport();
-  const w=window.open('','_blank','width=1200,height=900');if(!w){toast('warning','Không mở được cửa sổ in','Trình duyệt đang chặn popup.');return;}
-  const esc=v=>escapeHtml(v||'');
-  const bio=(d.biochemical||[]).map(x=>`<tr><td>${esc(x?.name)}</td><td>${esc(x?.actual)}</td><td>${esc(x?.expected)}</td></tr>`).join('');
-  const ast=(d.antimicrobial||[]).map(x=>`<tr><td>${esc(x?.name)}</td><td>${esc(x?.actual)}</td><td>${esc(x?.expected)}</td><td>${esc(x?.status)}</td></tr>`).join('');
-  const meta=Object.entries(d).filter(([k])=>!['biochemical','antimicrobial'].includes(k)).map(([k,v])=>`<div><b>${esc(k)}</b><br>${esc(v)}</div>`).join('');
-  w.document.write(`<!doctype html><html><head><title>QC Lab Report</title><style>body{font-family:'Times New Roman',Times,serif;color:#111;margin:12mm;font-size:10px}h1{text-align:center;font-size:18px;margin:0 0 12px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 22px;margin-bottom:12px}.meta div{border-bottom:1px solid #bbb;padding:4px 0}table{width:100%;border-collapse:collapse;margin:6px 0 12px}th,td{border:1px solid #777;padding:4px;text-align:left}th{font-weight:700;background:#eee}.sec{font-weight:700;margin:10px 0 4px}.special{min-height:50px;border:1px solid #777;padding:7px}@page{size:A4 portrait;margin:10mm}</style></head><body><h1>QC Lab Report</h1><div class="meta">${meta}</div><div class="sec">Biochemical</div><table><thead><tr><th>Biochemical</th><th>Actual</th><th>Expected</th></tr></thead><tbody>${bio}</tbody></table><div class="sec">Antimicrobial</div><table><thead><tr><th>Antimicrobial</th><th>Actual</th><th>Expected</th><th>Status</th></tr></thead><tbody>${ast}</tbody></table><div class="sec">SPECIAL MESSAGES</div><div class="special">${esc(d.specialMessages)}</div></body></html>`);w.document.close();setTimeout(()=>w.print(),200);
-}
+function printPhoenixQCReport(recordId){virologyEnsureState();const d=recordId?state.virologyTDResults.find(r=>r.id===recordId):collectPhoenixQCReport();if(!d){toast('warning','Không có dữ liệu','Không tìm thấy phiếu QC Vi sinh (TĐ).');return;}const esc=v=>escapeHtml(v??'');const bio=(d.biochemical||[]).map(x=>`<tr><td>${esc(x?.name)}</td><td>${esc(x?.actual)}</td><td>${esc(x?.expected)}</td></tr>`).join('');const ast=(d.antimicrobial||[]).map(x=>`<tr><td>${esc(x?.name)}</td><td>${esc(x?.actual)}</td><td>${esc(x?.expected)}</td><td>${esc(x?.status)}</td></tr>`).join('');const labels={hospital:'BỆNH VIỆN',location:'ĐỊA ĐIỂM',panelLot:'Panel Lot Number',testStart:'Test Start',panelType:'Panel Type',status:'Status',idBrothLot:'ID Broth Lot Number',astBrothLot:'AST Broth Lot Number',indicatorLot:'Indicator Lot Number',panelExp:'Expiration Date',testEnd:'Test End',location2:'Location',techId:'Tech ID',idBrothExp:'Expiration Date',astBrothExp:'Expiration Date',indicatorExp:'Expiration Date',sequence:'Sequence Number',accession:'Accession Number',isolate:'Isolate Number',testStrain:'Test Strain',qcStatus:'QC Status',inoculum:'Inoculum Density',instrument:'Instrument ID(s)'};const meta=Object.entries(d).filter(([k])=>!['biochemical','antimicrobial','id','createdAt','user','syncStatus','source'].includes(k)&&!Array.isArray(d[k])).map(([k,v])=>`<div><b>${esc(labels[k]||k)}</b><br>${esc(v||'—')}</div>`).join('');const w=window.open('','_blank','width=1200,height=900');if(!w)return;w.document.write(`<!doctype html><html><head><title>QC Lab Report</title><style>body{font-family:'Times New Roman',serif;margin:10mm;font-size:10px;color:#111}.meta{display:grid;grid-template-columns:1fr 1fr;gap:5px 20px}.meta div{padding:4px;border-bottom:1px solid #bbb}table{width:100%;border-collapse:collapse;margin:8px 0}th,td{border:1px solid #777;padding:4px;text-align:left}th{background:#eee}@page{size:A4 portrait;margin:9mm}</style></head><body><h1>QC Lab Report</h1><div class="meta">${meta}</div><h3>Biochemical</h3><table><thead><tr><th>Biochemical</th><th>Actual</th><th>Expected</th></tr></thead><tbody>${bio}</tbody></table><h3>Antimicrobial</h3><table><thead><tr><th>Antimicrobial</th><th>Actual</th><th>Expected</th><th>Status</th></tr></thead><tbody>${ast}</tbody></table><h3>SPECIAL MESSAGES</h3><div>${esc(d.specialMessages||'')}</div></body></html>`);w.document.close();setTimeout(()=>w.print(),250);}
 
 function openWhonetConfig(){
   const c=state.whonetConfig||{};
@@ -4438,178 +4434,5 @@ bootApp=function(){virologyEnsureState();_oldBootApp();};
 .virology-sheet{font-family:'Times New Roman',Times,serif;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:14px;overflow:hidden}.virology-head{display:grid;grid-template-columns:1fr 2fr;gap:14px;align-items:start;text-align:center;font-size:13px;line-height:1.35;margin-bottom:12px}.virology-head>div:first-child b{display:block}.virology-head>div:first-child span{display:block}.virology-title b{display:block;font-size:14px}.virology-title span{display:block;font-style:italic;margin-top:3px}.virology-lotbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px;border:1px solid var(--border);background:var(--surface-2);border-radius:8px;margin-bottom:10px}.virology-lotbar>div{display:flex;align-items:center;gap:6px}.virology-lotbar .vt-lot-instruction{font-weight:600;color:var(--text);width:100%}.virology-lotbar input{width:150px;padding:7px 8px}.virology-table-wrap{overflow-x:auto;overflow-y:hidden;border:1px solid #6b7280;border-radius:2px;-webkit-overflow-scrolling:touch}.virology-table{width:max-content;min-width:100%;border-collapse:collapse;table-layout:auto;font-family:'Times New Roman',Times,serif;font-size:11px}.virology-table th,.virology-table td{border:1px solid #6b7280;padding:5px;text-align:center;vertical-align:middle;white-space:nowrap}.virology-table th{background:var(--surface-2);font-weight:700}.virology-table th span{font-size:10px;font-weight:400}.virology-table .vt-left{text-align:left;width:145px;min-width:145px}.virology-table .vt-abx-head,.virology-table .vt-abx-subhead,.virology-table .vt-abx-cell,.virology-table .vt-hsd-row td:not(.vt-left){width:78px;min-width:78px}.virology-table .vt-side-col{min-width:110px}.virology-table .vt-patient-col{width:110px}.virology-table .vt-date-col{width:150px;min-width:150px}.virology-table .vt-note-col{width:170px;min-width:170px}.virology-table .vt-side-cell{white-space:normal}.virology-table td input,.virology-table td textarea{font-family:inherit;font-size:11px;box-sizing:border-box;border-radius:4px}.virology-table td input{width:100%;min-width:0;padding:6px 5px}.virology-table td input[type=number]{width:100%;text-align:center}.virology-table td input[type=date]{width:100%;min-width:0}.virology-table td textarea{width:100%;min-width:150px;min-height:62px;resize:vertical;padding:6px}.virology-table .vt-input-stack{display:flex;flex-direction:column;gap:4px;width:100%;min-width:0}.virology-table .vt-eval-cell input,.virology-table .vt-date-col input,.virology-table .vt-note-col textarea{box-sizing:border-box;width:100%;min-width:0}.virology-table .vt-eval-cell,.virology-table .vt-date-col,.virology-table .vt-note-col{vertical-align:middle}.virology-table .vt-eval-cell input{min-height:34px}.virology-table .vt-date-col input{min-height:32px}.virology-table .vt-note-col textarea{min-height:62px;display:block}.virology-table .vt-lot-row td{height:68px}.virology-table .vt-hsd-row td{height:34px}.virology-table .vt-lot-row input{display:block;margin:0}.virology-table .vt-hsd-row td:not(.vt-left){font-size:10px}.vt-sub{display:block;font-size:9px;color:var(--text-muted);font-weight:400;margin-top:2px}.virology-codes{font-size:10.5px;line-height:1.5;margin-top:8px;padding:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:7px}.virology-codes b{margin-right:4px}@media(max-width:900px){.virology-head{grid-template-columns:1fr}.virology-sheet{padding:8px}.virology-lotbar>div{width:100%;justify-content:space-between}.virology-lotbar input{width:55%}.virology-table{font-size:10.5px}.virology-table .vt-abx-head,.virology-table .vt-abx-subhead,.virology-table .vt-abx-cell,.virology-table .vt-hsd-row td:not(.vt-left){width:74px;min-width:74px}.virology-table .vt-left{min-width:130px}.virology-table .vt-date-col{min-width:145px}.virology-table .vt-note-col{min-width:155px}}
 `;document.head.appendChild(st)})();
 </script>
-    <script>
-/* =========================================================
-   TỰ ĐỘNG CẬP NHẬT NGÀY IN / NGÀY QC TRÊN PHIẾU
-   ========================================================= */
-
-(function () {
-
-    function formatVietnameseDate(dateValue) {
-        if (!dateValue) return '';
-
-        const date = new Date(dateValue);
-
-        if (isNaN(date.getTime())) return '';
-
-        const day = String(date.getDate()).padStart(2, '0');
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const year = date.getFullYear();
-
-        return 'Ngày ' + day +
-               ' tháng ' + month +
-               ' năm ' + year;
-    }
-
-
-    /* ---------------------------------------------------------
-       TÌM NGÀY QC TRONG PHIẾU
-       --------------------------------------------------------- */
-    function getQCDate() {
-
-        /*
-         * Ưu tiên các ô ngày QC trong bảng
-         */
-        const qcDateInputs = document.querySelectorAll(
-            '.vtc-row-date, ' +
-            '.qc-date, ' +
-            'input[aria-label="Ngày QC"], ' +
-            'input[name="ngayQC"]'
-        );
-
-        for (const input of qcDateInputs) {
-
-            if (input && input.value) {
-                return input.value;
-            }
-        }
-
-
-        /*
-         * Nếu không có Ngày QC thì tìm Ngày SX
-         */
-        const productionDateInputs = document.querySelectorAll(
-            '.vtc-meta-date, ' +
-            'input[aria-label="Ngày SX"], ' +
-            'input[name="ngaySX"]'
-        );
-
-        for (const input of productionDateInputs) {
-
-            if (input && input.value) {
-                return input.value;
-            }
-        }
-
-
-        /*
-         * Nếu vẫn không có ngày thì lấy ngày hiện tại
-         */
-        const today = new Date();
-
-        const year = today.getFullYear();
-        const month = String(today.getMonth() + 1).padStart(2, '0');
-        const day = String(today.getDate()).padStart(2, '0');
-
-        return year + '-' + month + '-' + day;
-    }
-
-
-    /* ---------------------------------------------------------
-       CẬP NHẬT DÒNG NGÀY TRÊN PHIẾU
-       --------------------------------------------------------- */
-    function updatePrintDate() {
-
-        const dateElement = document.getElementById('rw-sign-date');
-
-        if (!dateElement) {
-            return;
-        }
-
-        const qcDate = getQCDate();
-
-        if (!qcDate) {
-            return;
-        }
-
-        const formattedDate = formatVietnameseDate(qcDate);
-
-        if (!formattedDate) {
-            return;
-        }
-
-        /*
-         * Giữ nguyên phần "......,"
-         * và chỉ thay phần ngày
-         */
-        dateElement.textContent =
-            '......, ' + formattedDate;
-    }
-
-
-    /* ---------------------------------------------------------
-       CẬP NHẬT NGAY KHI TRANG ĐƯỢC MỞ
-       --------------------------------------------------------- */
-    document.addEventListener('DOMContentLoaded', function () {
-
-        updatePrintDate();
-
-
-        /*
-         * Theo dõi khi người dùng thay đổi Ngày QC
-         */
-        document.addEventListener('change', function (event) {
-
-            const target = event.target;
-
-            if (!target) return;
-
-
-            if (
-                target.matches('.vtc-row-date') ||
-                target.matches('.vtc-meta-date') ||
-                target.matches('input[aria-label="Ngày QC"]') ||
-                target.matches('input[aria-label="Ngày SX"]') ||
-                target.matches('input[name="ngayQC"]') ||
-                target.matches('input[name="ngaySX"]')
-            ) {
-
-                updatePrintDate();
-            }
-
-        });
-
-    });
-
-
-    /* ---------------------------------------------------------
-       TRƯỚC KHI IN / XUẤT PDF
-       --------------------------------------------------------- */
-    window.addEventListener('beforeprint', function () {
-
-        updatePrintDate();
-
-    });
-
-
-    /*
-     * Hỗ trợ trình duyệt khi gọi window.print()
-     */
-    const originalPrint = window.print;
-
-    window.print = function () {
-
-        updatePrintDate();
-
-        setTimeout(function () {
-
-            originalPrint.call(window);
-
-        }, 50);
-
-    };
-
-})();
-</script> 
 </body>
 </html>
