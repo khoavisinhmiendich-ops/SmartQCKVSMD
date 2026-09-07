@@ -1135,12 +1135,13 @@ function migrateState(){
      combobox "Chọn người dùng" bị rỗng sau khi dữ liệu cục bộ đã lưu
      một mảng users rỗng. */
   const defaultUsers=[
-    'TK. Nguyễn Thị Bình (Ths.XN)',
-    'KTVTK. Nguyễn Thái Hòa (CKI.XN)',
-    'NV. Nguyễn Gia Khang (CN.XN)',
-    'NV. Bùi Thị Tiến Phước (CN.XN)',
-    'NV. Trần Thị Cẩm Ly (CN.XN)',
-    'NV. Nguyễn Hồng Lợi (CN.XN)',
+    'TK. Nguyễn Thị Bình (Ths)',
+    'KTVTK. Nguyễn Thái Hòa (CKIXN)',
+    'NV. Nguyễn Gia Khang (CNXN)',
+    'NV. Bùi Thị Tiến Phước (CNXN)',
+    'NV. Trần Thị Cẩm Ly (CNXN)',
+    'NV. Nguyễn Thị Ngọc Trâm (CNXN)',
+    'NV. Lê Diệu Đan (CNXN)',
   ];
   if(!Array.isArray(state.settings.users) || state.settings.users.length===0){
     state.settings.users=[...defaultUsers];
