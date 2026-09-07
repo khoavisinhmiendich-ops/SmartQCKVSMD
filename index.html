@@ -441,7 +441,7 @@ table.lot-rapid-table th:nth-child(4),table.lot-rapid-table td:nth-child(4){widt
 
 .print-only{display:none;}
 #rapidWaterPrintHost{display:none;}
-.rapid-water-print-sheet{font-family:Arial,Helvetica,sans-serif;color:#111;background:#fff;font-size:12px;line-height:1.35;}
+.rapid-water-print-sheet{font-family:'Times New Roman',Times,serif;color:#111;background:#fff;font-size:12px;line-height:1.35;}
 .rw-print-top{display:grid;grid-template-columns:1fr 260px;gap:20px;align-items:start;text-align:center;margin-bottom:18px;}
 .rw-org{font-size:14px;line-height:1.55;padding-top:8px;}
 .rw-title{font-size:15px;line-height:1.4;}
@@ -456,6 +456,7 @@ table.lot-rapid-table th:nth-child(4),table.lot-rapid-table td:nth-child(4){widt
 .rw-print-lines>div{min-height:48px;border-bottom:1px dotted #555;padding:5px 0;white-space:pre-wrap;}
 .rw-sign-date{text-align:right;margin-top:22px;font-style:italic;}
 .rw-sign{display:grid;grid-template-columns:1fr 1fr;text-align:center;margin-top:28px;min-height:80px;}
+.rw-print-footer{display:none;}
 @media print{
   .sidebar,.header,.no-print{display:none !important;}
   .content{padding:0;max-width:100%;}
@@ -465,6 +466,10 @@ table.lot-rapid-table th:nth-child(4),table.lot-rapid-table td:nth-child(4){widt
   body.printing-rapid-water #rapidWaterPrintHost{display:block !important;}
   body.printing-rapid-water #rapidWaterPrintHost .rapid-water-print-sheet{display:block !important;}
   @page{size:A4 portrait;margin:14mm;}
+  body.printing-rapid-water .rw-print-footer{display:grid!important;position:fixed;left:0;right:0;bottom:0;height:11mm;padding-top:3mm;border-top:1.2px solid #111;background:#fff;grid-template-columns:1fr 1fr 1fr;align-items:start;font-family:'Times New Roman',Times,serif;font-size:9.5pt;line-height:1.2;color:#111;}
+  body.printing-rapid-water .rw-print-footer .left{text-align:left;}
+  body.printing-rapid-water .rw-print-footer .center{text-align:center;}
+  body.printing-rapid-water .rw-print-footer .right{text-align:right;}
 }
 @media screen{
   #rapidWaterPrintHost{display:none;}
@@ -562,7 +567,7 @@ table.lot-rapid-table th:nth-child(4),table.lot-rapid-table td:nth-child(4){widt
 
 
 /* ===== REPORT EXPORT FIX: Báo cáo xử lý QC không đạt ===== */
-.report-handling-export{font-family:Arial,Helvetica,sans-serif;background:#fff;color:#111;}
+.report-handling-export{font-family:'Times New Roman',Times,serif;background:#fff;color:#111;}
 .report-handling-export .rh-title{font-size:16px;font-weight:700;text-align:center;margin:0 0 3px;}
 .report-handling-export .rh-sub{font-size:10px;text-align:center;color:#555;margin:0 0 8px;}
 .report-handling-export .rh-item{border:1px solid #555;margin:0 0 6px;padding:6px 8px;break-inside:avoid;page-break-inside:avoid;}
@@ -681,6 +686,23 @@ table.lot-rapid-table th:nth-child(4),table.lot-rapid-table td:nth-child(4){widt
   .qc-svg-host svg{height:250px!important;width:100%!important;}
 }
 
+
+/* =====================================================================
+   GLOBAL TYPOGRAPHY — Times New Roman only
+   Requirement: all nhập / hiển thị / xuất / in use Times New Roman.
+   No layout, content, sizing, color, spacing or component structure changed.
+   ===================================================================== */
+html, body, body * {
+  font-family: 'Times New Roman', Times, serif !important;
+}
+input, select, textarea, button, option, table, th, td, label, span, div, p, h1, h2, h3, h4, h5, h6, a {
+  font-family: 'Times New Roman', Times, serif !important;
+}
+@media print {
+  html, body, body *, input, select, textarea, button, option, table, th, td {
+    font-family: 'Times New Roman', Times, serif !important;
+  }
+}
 </style>
 
 <style id="final-qc-export-fix">
@@ -1601,7 +1623,7 @@ function renderTrendChart(){
       {label:'Không đạt',data:dataFail,backgroundColor:css.getPropertyValue('--danger').trim(),borderRadius:3,maxBarThickness:16},
     ]},
     options:{responsive:true,maintainAspectRatio:false,
-      scales:{x:{stacked:true,grid:{display:false},ticks:{color:css.getPropertyValue('--text-muted').trim(),font:{family:'IBM Plex Mono',size:10.5}}},
+      scales:{x:{stacked:true,grid:{display:false},ticks:{color:css.getPropertyValue('--text-muted').trim(),font:{family:'Times New Roman',size:10.5}}},
                y:{stacked:true,grid:{color:css.getPropertyValue('--border').trim()},ticks:{color:css.getPropertyValue('--text-muted').trim(),precision:0}}},
       plugins:{legend:{position:'bottom',labels:{color:css.getPropertyValue('--text-muted').trim(),boxWidth:12,font:{size:11.5}}}}
     }});
@@ -1619,7 +1641,7 @@ function renderRapidWaterEntry(){
       <div class="card-head">
         <div>
           <h3>Nhập kết quả QC — Test nhanh & Test nước</h3>
-          <span class="hint">Biểu mẫu theo phiếu BM 02–TDNoK–V1 · chứng Âm / chứng Dương · 2 lần chạy</span>
+          <span class="hint">Biểu mẫu theo phiếu XN-BM 5.8.5/01 · chứng Âm / chứng Dương · 2 lần chạy</span>
         </div>
       </div>
       <div class="card-body">
@@ -1755,8 +1777,15 @@ function printRapidWaterQC(){
           <p><b>* Hành động khắc phục (nếu có sự không phù hợp):</b></p><div>${field(data.corrective)}</div>
           <p><b>* Hành động phòng ngừa (nếu có):</b></p><div>${field(data.preventive)}</div>
         </div>
-        <div class="rw-sign-date">......, Ngày .... tháng .... năm ........</div>
+        <div class="rw-sign-date" id="rw-sign-date">
+    ......, Ngày .... tháng .... năm ........
+</div>
         <div class="rw-sign"><div><b>Người thực hiện</b><br><br>${field(data.performer)}</div><div><b>Người xem xét</b><br><br>${field(data.reviewer)}</div></div>
+        <div class="rw-print-footer" aria-label="Chân trang phiếu in">
+          <div class="left">XN-BM 5.8.5/01</div>
+          <div class="center">Lần ban hành: 01.01/01/2026</div>
+          <div class="right">Trang 1/1</div>
+        </div>
       </div>`;
 
     let host=document.getElementById('rapidWaterPrintHost');
@@ -2034,8 +2063,8 @@ function drawLJChart(canvasId, testId, machineId, filterDays){
       responsive:true, maintainAspectRatio:false,
       interaction:{mode:'nearest',intersect:true},
       scales:{
-        x:{grid:{display:false}, ticks:{color:colors.text, font:{family:'IBM Plex Mono', size:10}, maxRotation:0, autoSkip:true, maxTicksLimit:8}},
-        y:{min:-4, max:4, grid:{color:colors.border}, ticks:{color:colors.text, font:{family:'IBM Plex Mono', size:10.5}, callback:(v)=>v+'SD'}}
+        x:{grid:{display:false}, ticks:{color:colors.text, font:{family:'Times New Roman', size:10}, maxRotation:0, autoSkip:true, maxTicksLimit:8}},
+        y:{min:-4, max:4, grid:{color:colors.border}, ticks:{color:colors.text, font:{family:'Times New Roman', size:10.5}, callback:(v)=>v+'SD'}}
       },
       plugins:{
         legend:{display:levels.length>1, position:'top', align:'end', labels:{filter:(item)=>!['Mean','+2SD','-2SD','+3SD','-3SD'].includes(item.text), color:colors.text, boxWidth:12, font:{size:11.5}}},
@@ -3189,8 +3218,8 @@ function drawLJChart(canvasId,testId,machineId,filterDays){
   charts[canvasId]=new Chart(canvas,{type:'line',data:{labels,datasets},options:{
     responsive:true,maintainAspectRatio:false,normalized:true,animation:{duration:220},interaction:{mode:'nearest',intersect:false},
     scales:{
-      x:{grid:{display:false},border:{color:c.border},ticks:{color:c.text,autoSkip:true,maxTicksLimit:10,maxRotation:0,font:{family:'IBM Plex Mono',size:10}}},
-      y:{min:-lim,max:lim,grid:{color:c.border},border:{color:c.border},ticks:{color:c.text,font:{family:'IBM Plex Mono',size:10},callback:v=>v===0?'Mean':(v>0?'+':'')+v+' SD'}}
+      x:{grid:{display:false},border:{color:c.border},ticks:{color:c.text,autoSkip:true,maxTicksLimit:10,maxRotation:0,font:{family:'Times New Roman',size:10}}},
+      y:{min:-lim,max:lim,grid:{color:c.border},border:{color:c.border},ticks:{color:c.text,font:{family:'Times New Roman',size:10},callback:v=>v===0?'Mean':(v>0?'+':'')+v+' SD'}}
     },
     plugins:{
       legend:{display:levels.length>1,position:'top',align:'end',labels:{filter:i=>i.dataset._qcData,color:c.text,boxWidth:12,font:{size:11.5}}},
@@ -3259,7 +3288,7 @@ function drawReportQCChart(rows){
     {label:'+2SD',data:labels.map(()=>2),borderColor:c.warn,borderDash:[4,4],borderWidth:1,pointRadius:0},{label:'-2SD',data:labels.map(()=>-2),borderColor:c.warn,borderDash:[4,4],borderWidth:1,pointRadius:0},
     {label:'+3SD',data:labels.map(()=>3),borderColor:c.fail,borderDash:[2,4],borderWidth:1,pointRadius:0},{label:'-3SD',data:labels.map(()=>-3),borderColor:c.fail,borderDash:[2,4],borderWidth:1,pointRadius:0}
   ]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:180},interaction:{mode:'nearest',intersect:false},
-    scales:{x:{grid:{display:false},ticks:{color:c.text,autoSkip:true,maxTicksLimit:9,font:{family:'IBM Plex Mono',size:9.5}}},y:{min:-4,max:4,grid:{color:c.border},ticks:{color:c.text,callback:v=>v===0?'Mean':(v>0?'+':'')+v+' SD'}}},
+    scales:{x:{grid:{display:false},ticks:{color:c.text,autoSkip:true,maxTicksLimit:9,font:{family:'Times New Roman',size:9.5}}},y:{min:-4,max:4,grid:{color:c.border},ticks:{color:c.text,callback:v=>v===0?'Mean':(v>0?'+':'')+v+' SD'}}},
     plugins:{legend:{display:false},tooltip:{callbacks:{label(ctx){const r=rs[ctx.dataIndex];return ctx.datasetIndex===0&&r?`${byId(state.tests,r.testId)?.name||''} · L${r.level} · KQ ${r.value} · Z ${r.z>0?'+':''}${r.z}`:null;}}}}
   }});
   requestAnimationFrame(()=>charts.reportQCChart?.resize());
@@ -3493,17 +3522,17 @@ async function exportReportXLSX(){
       };
       ws.pageSetup.horizontalDpi=300; ws.pageSetup.verticalDpi=300;
       ws.mergeCells('A1:H1'); ws.getCell('A1').value='BÁO CÁO XỬ LÝ QC KHÔNG ĐẠT';
-      ws.getCell('A1').font={name:'Arial',size:14,bold:true,color:{argb:'FF152033'}};
+      ws.getCell('A1').font={name:'Times New Roman',size:14,bold:true,color:{argb:'FF152033'}};
       ws.getCell('A1').alignment={horizontal:'center',vertical:'middle'}; ws.getRow(1).height=24;
       ws.mergeCells('A2:H2'); ws.getCell('A2').value=`${fmtDMY(from)} – ${fmtDMY(to)} · ${ordered.length} trường hợp`;
-      ws.getCell('A2').font={name:'Arial',size:9,italic:true,color:{argb:'FF65758C'}};
+      ws.getCell('A2').font={name:'Times New Roman',size:9,italic:true,color:{argb:'FF65758C'}};
       ws.getCell('A2').alignment={horizontal:'center',vertical:'middle'}; ws.getRow(2).height=17;
 
       const headers=['Xét nghiệm / Level','Máy','Lot','Vi phạm Westgard','KQ / Mean / SD','Nguyên nhân','Hành động khắc phục','Chạy lại / Người thực hiện / Người xem xét'];
       const headerRow=4; ws.getRow(headerRow).values=headers;
       const widths=[22,22,18,20,22,32,38,32]; widths.forEach((w,i)=>ws.getColumn(i+1).width=w);
       const hr=ws.getRow(headerRow); hr.height=25;
-      hr.font={name:'Arial',size:9,bold:true,color:{argb:'FFFFFFFF'}};
+      hr.font={name:'Times New Roman',size:9,bold:true,color:{argb:'FFFFFFFF'}};
       hr.alignment={horizontal:'center',vertical:'middle',wrapText:true};
       hr.eachCell(c=>{c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF0E6BA8'}};
         c.border={top:{style:'thin',color:{argb:'FF777777'}},left:{style:'thin',color:{argb:'FF777777'}},bottom:{style:'thin',color:{argb:'FF777777'}},right:{style:'thin',color:{argb:'FF777777'}}};});
@@ -3519,7 +3548,7 @@ async function exportReportXLSX(){
         ];
         row.height=48;
         row.eachCell((c,col)=>{
-          c.font={name:'Arial',size:8.5,color:{argb:'FF152033'}};
+          c.font={name:'Times New Roman',size:8.5,color:{argb:'FF152033'}};
           c.alignment={vertical:'top',horizontal:col===1?'left':'left',wrapText:true};
           c.border={top:{style:'thin',color:{argb:'FFD0D7DE'}},left:{style:'thin',color:{argb:'FFD0D7DE'}},bottom:{style:'thin',color:{argb:'FFD0D7DE'}},right:{style:'thin',color:{argb:'FFD0D7DE'}}};
           if(idx%2===1)c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF8FAFC'}};
@@ -3528,7 +3557,7 @@ async function exportReportXLSX(){
       const footRow=headerRow+1+ordered.length+1;
       ws.mergeCells(`A${footRow}:H${footRow}`);
       ws.getCell(`A${footRow}`).value='© 2026 Khoa Vi sinh - Miễn dịch, Bệnh viện Phong - Da liễu TW Quy Hòa';
-      ws.getCell(`A${footRow}`).font={name:'Arial',size:8,italic:true,color:{argb:'FF65758C'}};
+      ws.getCell(`A${footRow}`).font={name:'Times New Roman',size:8,italic:true,color:{argb:'FF65758C'}};
       ws.getCell(`A${footRow}`).alignment={horizontal:'center'};
       ws.printArea=`A1:H${footRow}`;
       const buffer=await wb.xlsx.writeBuffer();
@@ -3545,16 +3574,16 @@ async function exportReportXLSX(){
     const ws=wb.addWorksheet('Báo cáo QC',{views:[{showGridLines:false}]});
     ws.pageSetup={orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,paperSize:9,margins:{left:0.25,right:0.25,top:0.35,bottom:0.35,header:0.15,footer:0.15}};
     ws.mergeCells('A1:L1');ws.getCell('A1').value='SMART QC — BÁO CÁO CHẤT LƯỢNG NỘI KIỂM';
-    ws.getCell('A1').font={name:'Arial',size:16,bold:true,color:{argb:'FF152033'}};ws.getCell('A1').alignment={horizontal:'center',vertical:'middle'};ws.getRow(1).height=28;
-    ws.mergeCells('A2:L2');ws.getCell('A2').value='Biểu đồ QC và toàn bộ dữ liệu hiển thị trên cùng một Sheet';ws.getCell('A2').font={name:'Arial',size:10,italic:true,color:{argb:'FF65758C'}};ws.getCell('A2').alignment={horizontal:'center'};
+    ws.getCell('A1').font={name:'Times New Roman',size:16,bold:true,color:{argb:'FF152033'}};ws.getCell('A1').alignment={horizontal:'center',vertical:'middle'};ws.getRow(1).height=28;
+    ws.mergeCells('A2:L2');ws.getCell('A2').value='Biểu đồ QC và toàn bộ dữ liệu hiển thị trên cùng một Sheet';ws.getCell('A2').font={name:'Times New Roman',size:10,italic:true,color:{argb:'FF65758C'}};ws.getCell('A2').alignment={horizontal:'center'};
     const imageId=wb.addImage({base64:png,extension:'png'});ws.addImage(imageId,{tl:{col:0,row:3},br:{col:12,row:22}});
-    ws.getRow(23).height=8;ws.mergeCells('A24:L24');ws.getCell('A24').value='DỮ LIỆU QC CHI TIẾT';ws.getCell('A24').font={name:'Arial',size:12,bold:true,color:{argb:'FF152033'}};ws.getCell('A24').alignment={horizontal:'left',vertical:'middle'};ws.getRow(24).height=22;
+    ws.getRow(23).height=8;ws.mergeCells('A24:L24');ws.getCell('A24').value='DỮ LIỆU QC CHI TIẾT';ws.getCell('A24').font={name:'Times New Roman',size:12,bold:true,color:{argb:'FF152033'}};ws.getCell('A24').alignment={horizontal:'left',vertical:'middle'};ws.getRow(24).height=22;
     const headers=['Ngày','Giờ','Xét nghiệm','Máy','Level','Kết quả','Mean','SD','Z-score','Trạng thái','Westgard','Người thực hiện'];const headerRow=25;ws.getRow(headerRow).values=headers;
     const widths=[14,10,18,26,9,12,12,12,12,14,18,28];widths.forEach((w,i)=>ws.getColumn(i+1).width=w);
-    const hr=ws.getRow(headerRow);hr.height=24;hr.font={name:'Arial',size:10,bold:true,color:{argb:'FFFFFFFF'}};hr.alignment={horizontal:'center',vertical:'middle',wrapText:true};hr.eachCell(c=>{c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF0E6BA8'}};c.border={top:{style:'thin',color:{argb:'FFDFE6ED'}},left:{style:'thin',color:{argb:'FFDFE6ED'}},bottom:{style:'thin',color:{argb:'FFDFE6ED'}},right:{style:'thin',color:{argb:'FFDFE6ED'}}};});
-    ordered.forEach((r,idx)=>{const row=ws.getRow(headerRow+1+idx);row.values=[fmtDMY(r.date),r.time,byId(state.tests,r.testId)?.name||'',byId(state.machines,r.machineId)?.name||'',`L${r.level}`,Number(r.value),Number(r.mean),Number(r.sd),Number(r.z),STATUS_LABEL[r.status]||'',(r.violations||[]).join(', '),r.user||''];row.height=20;row.eachCell((c,col)=>{c.font={name:'Arial',size:10,color:{argb:'FF152033'}};c.alignment={vertical:'middle',horizontal:[6,7,8,9].includes(col)?'right':'left',wrapText:col===12};c.border={top:{style:'thin',color:{argb:'FFE6ECF2'}},left:{style:'thin',color:{argb:'FFE6ECF2'}},bottom:{style:'thin',color:{argb:'FFE6ECF2'}},right:{style:'thin',color:{argb:'FFE6ECF2'}}};if(idx%2===1)c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF8FAFC'}};});[6,7,8,9].forEach(col=>row.getCell(col).numFmt='0.00');});
+    const hr=ws.getRow(headerRow);hr.height=24;hr.font={name:'Times New Roman',size:10,bold:true,color:{argb:'FFFFFFFF'}};hr.alignment={horizontal:'center',vertical:'middle',wrapText:true};hr.eachCell(c=>{c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF0E6BA8'}};c.border={top:{style:'thin',color:{argb:'FFDFE6ED'}},left:{style:'thin',color:{argb:'FFDFE6ED'}},bottom:{style:'thin',color:{argb:'FFDFE6ED'}},right:{style:'thin',color:{argb:'FFDFE6ED'}}};});
+    ordered.forEach((r,idx)=>{const row=ws.getRow(headerRow+1+idx);row.values=[fmtDMY(r.date),r.time,byId(state.tests,r.testId)?.name||'',byId(state.machines,r.machineId)?.name||'',`L${r.level}`,Number(r.value),Number(r.mean),Number(r.sd),Number(r.z),STATUS_LABEL[r.status]||'',(r.violations||[]).join(', '),r.user||''];row.height=20;row.eachCell((c,col)=>{c.font={name:'Times New Roman',size:10,color:{argb:'FF152033'}};c.alignment={vertical:'middle',horizontal:[6,7,8,9].includes(col)?'right':'left',wrapText:col===12};c.border={top:{style:'thin',color:{argb:'FFE6ECF2'}},left:{style:'thin',color:{argb:'FFE6ECF2'}},bottom:{style:'thin',color:{argb:'FFE6ECF2'}},right:{style:'thin',color:{argb:'FFE6ECF2'}}};if(idx%2===1)c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF8FAFC'}};});[6,7,8,9].forEach(col=>row.getCell(col).numFmt='0.00');});
     ws.autoFilter={from:{row:headerRow,column:1},to:{row:headerRow,column:12}};ws.views=[{state:'frozen',ySplit:headerRow}];
-    ws.getCell('A'+(headerRow+ordered.length+2)).value='© 2026 Khoa Vi sinh - Miễn dịch, Bệnh viện Phong - Da liễu TW Quy Hòa';ws.mergeCells(`A${headerRow+ordered.length+2}:L${headerRow+ordered.length+2}`);ws.getCell('A'+(headerRow+ordered.length+2)).font={name:'Arial',size:9,italic:true,color:{argb:'FF65758C'}};
+    ws.getCell('A'+(headerRow+ordered.length+2)).value='© 2026 Khoa Vi sinh - Miễn dịch, Bệnh viện Phong - Da liễu TW Quy Hòa';ws.mergeCells(`A${headerRow+ordered.length+2}:L${headerRow+ordered.length+2}`);ws.getCell('A'+(headerRow+ordered.length+2)).font={name:'Times New Roman',size:9,italic:true,color:{argb:'FF65758C'}};
     const buffer=await wb.xlsx.writeBuffer();const blob=new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='bao_cao_qc_'+todayISO()+'.xlsx';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);
     toast('pass','Đã xuất Excel hoàn chỉnh','Biểu đồ QC và toàn bộ dữ liệu QC đã được đặt trên cùng một Sheet.');
   }catch(err){console.error('SMART QC Excel export error:',err);toast('danger','Xuất Excel thất bại',err?.message||'Không thể tạo file Excel có biểu đồ.');}
@@ -4064,9 +4093,9 @@ function virologyTCGridHtml(strain, values){
   }).join('');
   return `<div class="virology-sheet">
     <div class="virology-head"><div><b>BỆNH VIỆN PHONG - DA LIỄU TW QUY HÒA</b><span>KHOA: VI SINH - MIỄN DỊCH</span></div><div class="virology-title"><b>QC ĐĨA GIẤY KHÁNG SINH - MÔI TRƯỜNG MUELLER HINTON AGAR (MHA)</b><span>Giới hạn cho phép đối với chủng ${escapeHtml(t.title)}</span></div></div>
-    <div class="virology-lotbar"><b>Nhập Môi trường LOT và HSD cho từng kháng sinh tương ứng.</b></div>
-    <div class="virology-table-wrap"><table class="virology-table"><thead><tr><th rowspan="2" class="vt-left">Kháng sinh</th>${cols.map(c=>`<th class="vt-abx-head">${escapeHtml(c[0])}<br><span>${escapeHtml(c[1])}</span></th>`).join('')}<th rowspan="4" class="vt-side-col vt-patient-col">Đánh giá</th><th rowspan="4" class="vt-side-col vt-date-col">Ngày QC / Nhân viên</th><th rowspan="4" class="vt-side-col vt-note-col">Nhận xét / giám sát</th></tr><tr>${cols.map(c=>`<th class="vt-abx-subhead">(mm)${c[2]?' <span class="vt-range">'+escapeHtml(c[2])+'</span>':''}</th>`).join('')}</tr></thead><tbody>
-      <tr class="vt-lot-row"><td class="vt-left"><b>LOT</b></td>${lotCells}</tr>
+    <div class="virology-lotbar"><div class="vt-lot-instruction">Nhập Môi trường LOT và HSD cho từng kháng sinh tương ứng.</div></div>
+    <div class="virology-table-wrap"><table class="virology-table"><thead><tr><th rowspan="2" class="vt-left">Kháng sinh</th>${cols.map(c=>`<th class="vt-abx-head">${escapeHtml(c[0])}<br><span>${escapeHtml(c[1])}</span></th>`).join('')}<th rowspan="2" class="vt-side-col vt-patient-col">Đánh giá</th><th rowspan="2" class="vt-side-col vt-date-col">Ngày QC / Nhân viên</th><th rowspan="2" class="vt-side-col vt-note-col">Nhận xét / giám sát</th></tr><tr>${cols.map(c=>`<th class="vt-abx-subhead">(mm)${c[2]?' <span class="vt-range">'+escapeHtml(c[2])+'</span>':''}</th>`).join('')}</tr></thead><tbody>
+      <tr class="vt-lot-row"><td class="vt-left"><b>LOT</b></td>${lotCells}<td class="vt-side-cell vt-eval-cell" rowspan="2"></td><td class="vt-side-cell vt-date-col" rowspan="2"></td><td class="vt-side-cell vt-note-col" rowspan="2"></td></tr>
       <tr class="vt-hsd-row"><td class="vt-left"><b>HSD</b></td>${hsdCells}</tr>
       ${resultRows}
     </tbody></table></div>
@@ -4078,7 +4107,7 @@ function renderVirologyTC(){
   virologyEnsureState();
   const el=document.getElementById('virologyHubPanel')||document.getElementById('view-virology-tc');
   const selected=el.dataset.strain||Object.keys(VIROLOGY_TEMPLATES)[0]; el.dataset.strain=selected;
-  el.innerHTML=`<div class="card"><div class="card-head"><div><h3>Nhập QC Vi sinh (TC)</h3><span class="hint">Mẫu biểu lấy theo khung bảng trong hồ sơ ảnh; bỏ toàn bộ phần ghi tay, người dùng tự nhập.</span></div><div class="btn-row"><select id="vtc_strain" onchange="changeVirologyStrain(this.value)">${Object.keys(VIROLOGY_TEMPLATES).map(k=>`<option value="${escapeHtml(k)}" ${k===selected?'selected':''}>${escapeHtml(k)}</option>`).join('')}</select><button class="btn ghost sm" onclick="openVirologyLotManager()">Quản lý LOT</button></div></div><div class="card-body" style="padding:12px">${virologyTCGridHtml(selected)}</div></div>`;
+  el.innerHTML=`<div class="card"><div class="card-head"><div><h3>Nhập QC Vi sinh (TC)</h3><span class="hint">Mẫu biểu lấy theo khung bảng trong hồ sơ ảnh, người dùng tự nhập.</span></div><div class="btn-row"><select id="vtc_strain" onchange="changeVirologyStrain(this.value)">${Object.keys(VIROLOGY_TEMPLATES).map(k=>`<option value="${escapeHtml(k)}" ${k===selected?'selected':''}>${escapeHtml(k)}</option>`).join('')}</select><button class="btn ghost sm" onclick="openVirologyLotManager()">Quản lý LOT</button></div></div><div class="card-body" style="padding:12px">${virologyTCGridHtml(selected)}</div></div>`;
   const lot=virologyLotFor(selected); const t=VIROLOGY_TEMPLATES[selected];
   t.antibiotics.forEach((_,i)=>{const x=state.virologyLots.find(v=>v.strain===selected);});
 }
@@ -4325,7 +4354,7 @@ function printPhoenixQCReport(){
   const bio=(d.biochemical||[]).map(x=>`<tr><td>${esc(x?.name)}</td><td>${esc(x?.actual)}</td><td>${esc(x?.expected)}</td></tr>`).join('');
   const ast=(d.antimicrobial||[]).map(x=>`<tr><td>${esc(x?.name)}</td><td>${esc(x?.actual)}</td><td>${esc(x?.expected)}</td><td>${esc(x?.status)}</td></tr>`).join('');
   const meta=Object.entries(d).filter(([k])=>!['biochemical','antimicrobial'].includes(k)).map(([k,v])=>`<div><b>${esc(k)}</b><br>${esc(v)}</div>`).join('');
-  w.document.write(`<!doctype html><html><head><title>QC Lab Report</title><style>body{font-family:Arial,sans-serif;color:#111;margin:12mm;font-size:10px}h1{text-align:center;font-size:18px;margin:0 0 12px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 22px;margin-bottom:12px}.meta div{border-bottom:1px solid #bbb;padding:4px 0}table{width:100%;border-collapse:collapse;margin:6px 0 12px}th,td{border:1px solid #777;padding:4px;text-align:left}th{font-weight:700;background:#eee}.sec{font-weight:700;margin:10px 0 4px}.special{min-height:50px;border:1px solid #777;padding:7px}@page{size:A4 portrait;margin:10mm}</style></head><body><h1>QC Lab Report</h1><div class="meta">${meta}</div><div class="sec">Biochemical</div><table><thead><tr><th>Biochemical</th><th>Actual</th><th>Expected</th></tr></thead><tbody>${bio}</tbody></table><div class="sec">Antimicrobial</div><table><thead><tr><th>Antimicrobial</th><th>Actual</th><th>Expected</th><th>Status</th></tr></thead><tbody>${ast}</tbody></table><div class="sec">SPECIAL MESSAGES</div><div class="special">${esc(d.specialMessages)}</div></body></html>`);w.document.close();setTimeout(()=>w.print(),200);
+  w.document.write(`<!doctype html><html><head><title>QC Lab Report</title><style>body{font-family:'Times New Roman',Times,serif;color:#111;margin:12mm;font-size:10px}h1{text-align:center;font-size:18px;margin:0 0 12px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 22px;margin-bottom:12px}.meta div{border-bottom:1px solid #bbb;padding:4px 0}table{width:100%;border-collapse:collapse;margin:6px 0 12px}th,td{border:1px solid #777;padding:4px;text-align:left}th{font-weight:700;background:#eee}.sec{font-weight:700;margin:10px 0 4px}.special{min-height:50px;border:1px solid #777;padding:7px}@page{size:A4 portrait;margin:10mm}</style></head><body><h1>QC Lab Report</h1><div class="meta">${meta}</div><div class="sec">Biochemical</div><table><thead><tr><th>Biochemical</th><th>Actual</th><th>Expected</th></tr></thead><tbody>${bio}</tbody></table><div class="sec">Antimicrobial</div><table><thead><tr><th>Antimicrobial</th><th>Actual</th><th>Expected</th><th>Status</th></tr></thead><tbody>${ast}</tbody></table><div class="sec">SPECIAL MESSAGES</div><div class="special">${esc(d.specialMessages)}</div></body></html>`);w.document.close();setTimeout(()=>w.print(),200);
 }
 
 function openWhonetConfig(){
@@ -4404,8 +4433,181 @@ bootApp=function(){virologyEnsureState();_oldBootApp();};
 .nav-subitems{margin:2px 0 6px 24px;border-left:1px solid var(--border);padding-left:6px}.nav-subitem{display:flex;align-items:center;gap:9px;min-height:36px;padding:8px 10px;border-radius:8px;font-size:12px;color:var(--text-muted);cursor:pointer}.nav-subitem:hover{background:var(--surface-2);color:var(--text)}.nav-subitem.active{background:var(--surface-2);color:var(--text);font-weight:700}.nav-subitem .ic{width:17px;display:inline-flex;justify-content:center}.virology-hub{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:14px}.virology-hub-card{border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:16px;cursor:pointer;transition:.18s ease;box-shadow:0 1px 2px rgba(0,0,0,.04)}.virology-hub-card:hover{transform:translateY(-1px);border-color:var(--primary);box-shadow:0 5px 18px rgba(0,0,0,.07)}.virology-hub-card.active{border-color:var(--primary);box-shadow:0 0 0 2px rgba(0,119,182,.08)}.virology-hub-icon{width:38px;height:38px;border-radius:10px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;margin-bottom:10px}.virology-hub-card h3{margin:0 0 4px;font-size:14px}.virology-hub-card p{margin:0;color:var(--text-muted);font-size:11px;line-height:1.45}.virology-panel{border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden}.td-report{font-family:'Times New Roman',Times,serif}.td-report-header{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:14px}.td-report-title{font-size:22px;font-weight:800;text-align:center;flex:1}.td-report-meta{display:grid;grid-template-columns:1fr 1fr;gap:10px 28px}.td-field{display:grid;grid-template-columns:minmax(150px,190px) 1fr;gap:10px;align-items:center;padding:7px 0;border-bottom:1px dashed var(--border)}.td-field label{font-weight:700;font-size:12px}.td-field input,.td-field select{width:100%;box-sizing:border-box}.td-section-title{font-size:13px;font-weight:800;margin:18px 0 8px;padding-bottom:6px;border-bottom:2px solid var(--border)}.td-bio-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;align-items:start}.td-bio-group{overflow:auto;border:1px solid var(--border);border-radius:8px}.td-bio-group .td-table{min-width:100%;}.td-table-wrap{overflow:auto;border:1px solid var(--border);border-radius:8px}.td-table{width:100%;border-collapse:collapse;min-width:720px;font-size:11px}.td-table th,.td-table td{border:1px solid var(--border);padding:7px 8px;vertical-align:middle}.td-table th{font-weight:800;background:var(--surface-2);text-align:left}.td-table input{width:100%;box-sizing:border-box;min-width:70px}.td-report-note{margin-top:12px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2)}.td-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.td-empty-title{color:var(--text-muted);font-size:11px}.td-kpi-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}.td-kpi{border:1px solid var(--border);border-radius:10px;padding:11px;background:var(--surface)}.td-kpi .k{font-size:10px;color:var(--text-muted)}.td-kpi .v{font-size:18px;font-weight:800;margin-top:2px}@media(max-width:900px){.virology-hub{grid-template-columns:1fr}.td-report-meta{grid-template-columns:1fr}.td-field{grid-template-columns:1fr;gap:3px}.td-kpi-grid{grid-template-columns:1fr}.td-bio-grid{grid-template-columns:1fr}.nav-subitems{margin-left:16px}}
 
 .phoenix-td-gateway{margin-top:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);overflow:hidden}.phoenix-td-gateway-head{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:11px 13px;border-bottom:1px solid var(--border)}.phoenix-td-gateway-head>div{display:flex;flex-direction:column;gap:3px}.phoenix-td-gateway-head b{font-size:12px}.phoenix-td-gateway-head span:not(.pill){font-size:10.5px;color:var(--text-muted);line-height:1.4}.phoenix-td-gateway-body{padding:12px}.phoenix-td-source{display:flex;flex-direction:column;gap:3px;font-size:11px}.phoenix-td-source span{color:var(--text-muted)}.phoenix-td-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.phoenix-td-info{display:flex;gap:14px;flex-wrap:wrap;margin-top:9px;font-size:10px;color:var(--text-muted)}.phoenix-td-info em{font-style:normal;color:var(--text)}@media(max-width:700px){.phoenix-td-gateway-head{align-items:flex-start;flex-direction:column}.phoenix-td-actions .btn{width:100%}.phoenix-td-info{display:grid;gap:5px}}\n
-.virology-sheet{font-family:'Times New Roman',Times,serif;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:14px;overflow:hidden}.virology-head{display:grid;grid-template-columns:1fr 2fr;gap:14px;align-items:start;text-align:center;font-size:13px;line-height:1.35;margin-bottom:12px}.virology-head>div:first-child b{display:block}.virology-head>div:first-child span{display:block}.virology-title b{display:block;font-size:14px}.virology-title span{display:block;font-style:italic;margin-top:3px}.virology-lotbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px;border:1px solid var(--border);background:var(--surface-2);border-radius:8px;margin-bottom:10px}.virology-lotbar>div{display:flex;align-items:center;gap:6px}.virology-lotbar input{width:150px;padding:7px 8px}.virology-table-wrap{overflow-x:auto;overflow-y:hidden;border:1px solid #6b7280;border-radius:2px;-webkit-overflow-scrolling:touch}.virology-table{width:max-content;min-width:100%;border-collapse:collapse;table-layout:auto;font-family:'Times New Roman',Times,serif;font-size:11px}.virology-table th,.virology-table td{border:1px solid #6b7280;padding:5px;text-align:center;vertical-align:middle;white-space:nowrap}.virology-table th{background:var(--surface-2);font-weight:700}.virology-table th span{font-size:10px;font-weight:400}.virology-table .vt-left{text-align:left;width:145px;min-width:145px}.virology-table .vt-abx-head,.virology-table .vt-abx-subhead,.virology-table .vt-abx-cell,.virology-table .vt-hsd-row td:not(.vt-left){width:78px;min-width:78px}.virology-table .vt-side-col{min-width:110px}.virology-table .vt-patient-col{width:110px}.virology-table .vt-date-col{width:150px;min-width:150px}.virology-table .vt-note-col{width:170px;min-width:170px}.virology-table .vt-side-cell{white-space:normal}.virology-table td input,.virology-table td textarea{font-family:inherit;font-size:11px;box-sizing:border-box;border-radius:4px}.virology-table td input{width:100%;min-width:0;padding:6px 5px}.virology-table td input[type=number]{width:100%;text-align:center}.virology-table td input[type=date]{width:100%;min-width:0}.virology-table td textarea{width:100%;min-width:150px;min-height:62px;resize:vertical;padding:6px}.virology-table .vt-input-stack{display:flex;flex-direction:column;gap:4px;width:100%;min-width:0}.virology-table .vt-eval-cell input,.virology-table .vt-date-col input,.virology-table .vt-note-col textarea{box-sizing:border-box;width:100%;min-width:0}.virology-table .vt-eval-cell,.virology-table .vt-date-col,.virology-table .vt-note-col{vertical-align:middle}.virology-table .vt-eval-cell input{min-height:34px}.virology-table .vt-date-col input{min-height:32px}.virology-table .vt-note-col textarea{min-height:62px;display:block}.virology-table .vt-lot-row td{height:68px}.virology-table .vt-hsd-row td{height:34px}.virology-table .vt-lot-row input{display:block;margin:0}.virology-table .vt-hsd-row td:not(.vt-left){font-size:10px}.vt-sub{display:block;font-size:9px;color:var(--text-muted);font-weight:400;margin-top:2px}.virology-codes{font-size:10.5px;line-height:1.5;margin-top:8px;padding:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:7px}.virology-codes b{margin-right:4px}@media(max-width:900px){.virology-head{grid-template-columns:1fr}.virology-sheet{padding:8px}.virology-lotbar>div{width:100%;justify-content:space-between}.virology-lotbar input{width:55%}.virology-table{font-size:10.5px}.virology-table .vt-abx-head,.virology-table .vt-abx-subhead,.virology-table .vt-abx-cell,.virology-table .vt-hsd-row td:not(.vt-left){width:74px;min-width:74px}.virology-table .vt-left{min-width:130px}.virology-table .vt-date-col{min-width:145px}.virology-table .vt-note-col{min-width:155px}}
+.virology-sheet{font-family:'Times New Roman',Times,serif;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:14px;overflow:hidden}.virology-head{display:grid;grid-template-columns:1fr 2fr;gap:14px;align-items:start;text-align:center;font-size:13px;line-height:1.35;margin-bottom:12px}.virology-head>div:first-child b{display:block}.virology-head>div:first-child span{display:block}.virology-title b{display:block;font-size:14px}.virology-title span{display:block;font-style:italic;margin-top:3px}.virology-lotbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px;border:1px solid var(--border);background:var(--surface-2);border-radius:8px;margin-bottom:10px}.virology-lotbar>div{display:flex;align-items:center;gap:6px}.virology-lotbar .vt-lot-instruction{font-weight:600;color:var(--text);width:100%}.virology-lotbar input{width:150px;padding:7px 8px}.virology-table-wrap{overflow-x:auto;overflow-y:hidden;border:1px solid #6b7280;border-radius:2px;-webkit-overflow-scrolling:touch}.virology-table{width:max-content;min-width:100%;border-collapse:collapse;table-layout:auto;font-family:'Times New Roman',Times,serif;font-size:11px}.virology-table th,.virology-table td{border:1px solid #6b7280;padding:5px;text-align:center;vertical-align:middle;white-space:nowrap}.virology-table th{background:var(--surface-2);font-weight:700}.virology-table th span{font-size:10px;font-weight:400}.virology-table .vt-left{text-align:left;width:145px;min-width:145px}.virology-table .vt-abx-head,.virology-table .vt-abx-subhead,.virology-table .vt-abx-cell,.virology-table .vt-hsd-row td:not(.vt-left){width:78px;min-width:78px}.virology-table .vt-side-col{min-width:110px}.virology-table .vt-patient-col{width:110px}.virology-table .vt-date-col{width:150px;min-width:150px}.virology-table .vt-note-col{width:170px;min-width:170px}.virology-table .vt-side-cell{white-space:normal}.virology-table td input,.virology-table td textarea{font-family:inherit;font-size:11px;box-sizing:border-box;border-radius:4px}.virology-table td input{width:100%;min-width:0;padding:6px 5px}.virology-table td input[type=number]{width:100%;text-align:center}.virology-table td input[type=date]{width:100%;min-width:0}.virology-table td textarea{width:100%;min-width:150px;min-height:62px;resize:vertical;padding:6px}.virology-table .vt-input-stack{display:flex;flex-direction:column;gap:4px;width:100%;min-width:0}.virology-table .vt-eval-cell input,.virology-table .vt-date-col input,.virology-table .vt-note-col textarea{box-sizing:border-box;width:100%;min-width:0}.virology-table .vt-eval-cell,.virology-table .vt-date-col,.virology-table .vt-note-col{vertical-align:middle}.virology-table .vt-eval-cell input{min-height:34px}.virology-table .vt-date-col input{min-height:32px}.virology-table .vt-note-col textarea{min-height:62px;display:block}.virology-table .vt-lot-row td{height:68px}.virology-table .vt-hsd-row td{height:34px}.virology-table .vt-lot-row input{display:block;margin:0}.virology-table .vt-hsd-row td:not(.vt-left){font-size:10px}.vt-sub{display:block;font-size:9px;color:var(--text-muted);font-weight:400;margin-top:2px}.virology-codes{font-size:10.5px;line-height:1.5;margin-top:8px;padding:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:7px}.virology-codes b{margin-right:4px}@media(max-width:900px){.virology-head{grid-template-columns:1fr}.virology-sheet{padding:8px}.virology-lotbar>div{width:100%;justify-content:space-between}.virology-lotbar input{width:55%}.virology-table{font-size:10.5px}.virology-table .vt-abx-head,.virology-table .vt-abx-subhead,.virology-table .vt-abx-cell,.virology-table .vt-hsd-row td:not(.vt-left){width:74px;min-width:74px}.virology-table .vt-left{min-width:130px}.virology-table .vt-date-col{min-width:145px}.virology-table .vt-note-col{min-width:155px}}
 `;document.head.appendChild(st)})();
 </script>
+    <script>
+/* =========================================================
+   TỰ ĐỘNG CẬP NHẬT NGÀY IN / NGÀY QC TRÊN PHIẾU
+   ========================================================= */
+
+(function () {
+
+    function formatVietnameseDate(dateValue) {
+        if (!dateValue) return '';
+
+        const date = new Date(dateValue);
+
+        if (isNaN(date.getTime())) return '';
+
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+
+        return 'Ngày ' + day +
+               ' tháng ' + month +
+               ' năm ' + year;
+    }
+
+
+    /* ---------------------------------------------------------
+       TÌM NGÀY QC TRONG PHIẾU
+       --------------------------------------------------------- */
+    function getQCDate() {
+
+        /*
+         * Ưu tiên các ô ngày QC trong bảng
+         */
+        const qcDateInputs = document.querySelectorAll(
+            '.vtc-row-date, ' +
+            '.qc-date, ' +
+            'input[aria-label="Ngày QC"], ' +
+            'input[name="ngayQC"]'
+        );
+
+        for (const input of qcDateInputs) {
+
+            if (input && input.value) {
+                return input.value;
+            }
+        }
+
+
+        /*
+         * Nếu không có Ngày QC thì tìm Ngày SX
+         */
+        const productionDateInputs = document.querySelectorAll(
+            '.vtc-meta-date, ' +
+            'input[aria-label="Ngày SX"], ' +
+            'input[name="ngaySX"]'
+        );
+
+        for (const input of productionDateInputs) {
+
+            if (input && input.value) {
+                return input.value;
+            }
+        }
+
+
+        /*
+         * Nếu vẫn không có ngày thì lấy ngày hiện tại
+         */
+        const today = new Date();
+
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+
+        return year + '-' + month + '-' + day;
+    }
+
+
+    /* ---------------------------------------------------------
+       CẬP NHẬT DÒNG NGÀY TRÊN PHIẾU
+       --------------------------------------------------------- */
+    function updatePrintDate() {
+
+        const dateElement = document.getElementById('rw-sign-date');
+
+        if (!dateElement) {
+            return;
+        }
+
+        const qcDate = getQCDate();
+
+        if (!qcDate) {
+            return;
+        }
+
+        const formattedDate = formatVietnameseDate(qcDate);
+
+        if (!formattedDate) {
+            return;
+        }
+
+        /*
+         * Giữ nguyên phần "......,"
+         * và chỉ thay phần ngày
+         */
+        dateElement.textContent =
+            '......, ' + formattedDate;
+    }
+
+
+    /* ---------------------------------------------------------
+       CẬP NHẬT NGAY KHI TRANG ĐƯỢC MỞ
+       --------------------------------------------------------- */
+    document.addEventListener('DOMContentLoaded', function () {
+
+        updatePrintDate();
+
+
+        /*
+         * Theo dõi khi người dùng thay đổi Ngày QC
+         */
+        document.addEventListener('change', function (event) {
+
+            const target = event.target;
+
+            if (!target) return;
+
+
+            if (
+                target.matches('.vtc-row-date') ||
+                target.matches('.vtc-meta-date') ||
+                target.matches('input[aria-label="Ngày QC"]') ||
+                target.matches('input[aria-label="Ngày SX"]') ||
+                target.matches('input[name="ngayQC"]') ||
+                target.matches('input[name="ngaySX"]')
+            ) {
+
+                updatePrintDate();
+            }
+
+        });
+
+    });
+
+
+    /* ---------------------------------------------------------
+       TRƯỚC KHI IN / XUẤT PDF
+       --------------------------------------------------------- */
+    window.addEventListener('beforeprint', function () {
+
+        updatePrintDate();
+
+    });
+
+
+    /*
+     * Hỗ trợ trình duyệt khi gọi window.print()
+     */
+    const originalPrint = window.print;
+
+    window.print = function () {
+
+        updatePrintDate();
+
+        setTimeout(function () {
+
+            originalPrint.call(window);
+
+        }, 50);
+
+    };
+
+})();
+</script> 
 </body>
 </html>
