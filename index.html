@@ -1541,48 +1541,169 @@ function toast(status,title,msg){
    ===================================================================== */
 function renderDashboard(){
   const el=document.getElementById('view-dashboard');
+  virologyEnsureState();
   const today=todayISO();
-  const todayResults=state.results.filter(r=>r.date===today);
-  const pass=todayResults.filter(r=>r.status==='pass').length;
-  const warn=todayResults.filter(r=>r.status==='warning').length;
-  const fail=todayResults.filter(r=>r.status==='reject').length;
-  const testCount=state.tests.length, machineCount=state.machines.length, lotActive=state.lots.filter(l=>lotStatus(l).key!=='expired').length;
 
-  // Real (not fabricated) trend: today's pass-rate vs yesterday's, only shown when yesterday has data.
+  // Dashboard QC source: tất cả các module có nhập QC.
+  const baseResults=Array.isArray(state.results)?state.results:[];
+  const tcResults=Array.isArray(state.virologyTCResults)?state.virologyTCResults:[];
+  const tdResults=Array.isArray(state.virologyTDResults)?state.virologyTDResults:[];
+  const rwResults=Array.isArray(state.rapidWaterResults)?state.rapidWaterResults:[];
+
+  const recordDate=(r,type)=>{
+    if(type==='base') return String(r?.date||'').slice(0,10);
+    if(type==='tc') return String(r?.qcDate || Object.values(r?.rowMeta||{}).find(x=>x?.qcDate)?.qcDate || r?.createdAt || '').slice(0,10);
+    if(type==='td') return String(r?.testStart || r?.datetime || r?.createdAt || '').slice(0,10);
+    return String(r?.date || r?.createdAt || '').slice(0,10);
+  };
+  const textStatus=(v)=>{
+    const x=String(v??'').trim().toLowerCase();
+    if(!x) return '';
+    if(/không\s*đạt|khong\s*dat|reject|fail|failed|not\s*pass/.test(x)) return 'reject';
+    if(/cảnh\s*báo|canh\s*bao|warning|warn/.test(x)) return 'warning';
+    if(/đạt|dat|pass|passed/.test(x)) return 'pass';
+    return '';
+  };
+  const classifyTC=(r)=>{
+    const vals=Object.values(r?.rowMeta||{}).flatMap(x=>[x?.evaluation,x?.note]);
+    for(const v of vals){const st=textStatus(v);if(st==='reject')return 'reject';}
+    for(const v of vals){const st=textStatus(v);if(st==='warning')return 'warning';}
+    for(const v of vals){const st=textStatus(v);if(st==='pass')return 'pass';}
+    return '';
+  };
+  const classifyTD=(r)=>{
+    const vals=[r?.qcStatus,r?.status,r?.specialMessages,r?.rawData?.['QC Status'],r?.rawData?.['Status'],r?.rawData?.['Special Messages']];
+    for(const v of vals){const st=textStatus(v);if(st==='reject')return 'reject';}
+    for(const v of vals){const st=textStatus(v);if(st==='warning')return 'warning';}
+    for(const v of vals){const st=textStatus(v);if(st==='pass')return 'pass';}
+    return '';
+  };
+  const classifyRW=(r)=>{
+    const expected=String(r?.controlLot||'').trim();
+    const vals=[r?.run1Neg,r?.run1Pos,r?.run2Neg,r?.run2Pos].filter(v=>String(v??'').trim()!=='');
+    if(!vals.length) return '';
+    // Phiếu Test nhanh/Test nước là định tính: khi Chứng/Mức đã chọn,
+    // mọi lần chạy phải khớp đúng chứng tương ứng mới được tính Đạt.
+    if(expected && vals.some(v=>String(v).trim()!==expected)) return 'reject';
+    return expected ? 'pass' : '';
+  };
+
+  const allRecords=[
+    ...baseResults.map(r=>({r,type:'base',module:'QC xét nghiệm',date:recordDate(r,'base'),status:r?.status||''})),
+    ...tcResults.map(r=>({r,type:'tc',module:'QC Vi sinh (TC)',date:recordDate(r,'tc'),status:classifyTC(r)})),
+    ...tdResults.map(r=>({r,type:'td',module:'QC Vi sinh (TĐ)',date:recordDate(r,'td'),status:classifyTD(r)})),
+    ...rwResults.map(r=>({r,type:'rw',module:'QC Test nhanh & Test nước',date:recordDate(r,'rw'),status:classifyRW(r)}))
+  ];
+  const todayRecords=allRecords.filter(x=>x.date===today);
+  const countStatus=(rows,status)=>rows.filter(x=>x.status===status).length;
+  const pass=countStatus(todayRecords,'pass');
+  const warn=countStatus(todayRecords,'warning');
+  const fail=countStatus(todayRecords,'reject');
+
   const yDate=fmtDate(new Date(Date.now()-86400000));
-  const yResults=state.results.filter(r=>r.date===yDate);
-  const todayPassRate = todayResults.length? pass/todayResults.length*100 : null;
-  const yPassRate = yResults.length? yResults.filter(r=>r.status==='pass').length/yResults.length*100 : null;
-  const passTrend = (todayPassRate!==null && yPassRate!==null) ? trendChip(round(todayPassRate-yPassRate,1)) : '';
+  const yRows=allRecords.filter(x=>x.date===yDate);
+  const todayPassRate=todayRecords.length?pass/todayRecords.length*100:null;
+  const yPassRate=yRows.length?countStatus(yRows,'pass')/yRows.length*100:null;
+  const passTrend=(todayPassRate!==null&&yPassRate!==null)?trendChip(round(todayPassRate-yPassRate,1)):'';
 
-  const recentAlerts=state.alerts.slice(0,6);
+  const recentAlerts=(Array.isArray(state.alerts)?state.alerts:[]).slice(0,6);
+  const recentModuleAlerts=allRecords.filter(x=>x.date===today&&(x.status==='warning'||x.status==='reject'))
+    .sort((a,b)=>String(b.r?.createdAt||b.r?.date||'').localeCompare(String(a.r?.createdAt||a.r?.date||'')))
+    .slice(0,10);
+  const unifiedAlerts=[
+    ...recentAlerts.map(a=>({kind:'core',data:a,time:a.time||'',severity:a.severity||'warning',module:'QC xét nghiệm'})),
+    ...recentModuleAlerts.map(x=>({kind:'module',data:x,time:x.r?.time||x.r?.testStart||x.r?.date||'',severity:x.status,module:x.module}))
+  ].sort((a,b)=>String(b.time).localeCompare(String(a.time))).slice(0,10);
+
+  const statusLabel=(st)=>st==='reject'?'Không đạt':st==='warning'?'Cảnh báo':st==='pass'?'Đạt':'Chưa đánh giá';
+  const moduleAlertHtml=x=>{
+    const r=x.data.r;
+    const name=x.module==='QC Vi sinh (TC)'?(r?.strain||'QC Vi sinh (TC)'):
+      x.module==='QC Vi sinh (TĐ)'?(r?.testStrain||r?.panelType||r?.organism||'QC Vi sinh (TĐ)'):
+      x.module==='QC Test nhanh & Test nước'?(state.rapidWaterTests.find(t=>t.id===r?.testId)?.name||'Test nhanh / Test nước'):'QC';
+    const date=x.time||'';
+    const meta=x.module==='QC Vi sinh (TC)'?`Ngày QC ${virologyFmtDate(r?.qcDate||'')} · Nhân viên ${r?.staff||'—'}`:
+      x.module==='QC Vi sinh (TĐ)'?`Ngày ${virologyFmtDate(r?.testStart||r?.datetime||'')} · Tech ID ${r?.techId||r?.rawData?.['Tech ID']||'—'}`:
+      `Ngày ${r?.date||'—'} · Người thực hiện ${r?.performer||'—'}`;
+    const icon=statusIcon(x.severity==='reject'?'reject':'warning',18);
+    const bg=x.severity==='reject'?'var(--danger-bg)':'var(--warning-bg)';
+    return `<div class="alert-row">
+      <div class="ic" style="background:${bg}">${icon}</div>
+      <div class="body"><div class="top"><span class="ttl">${escapeHtml(name)}</span><span class="tag">${escapeHtml(statusLabel(x.severity))}</span></div><div class="meta">${escapeHtml(x.module)} · ${escapeHtml(meta)}</div></div>
+      <div class="time">${escapeHtml(date)}</div>
+    </div>`;
+  };
+
+  const tcToday=tcResults.filter(r=>recordDate(r,'tc')===today).length;
+  const tdToday=tdResults.filter(r=>recordDate(r,'td')===today).length;
+  const rwToday=rwResults.filter(r=>recordDate(r,'rw')===today).length;
+  const tcTotal=tcResults.length, tdTotal=tdResults.length, rwTotal=rwResults.length;
+  const testCount=state.tests.length, machineCount=state.machines.length, lotActive=state.lots.filter(l=>lotStatus(l).key!=='expired').length;
 
   el.innerHTML=`
     <div class="grid g-kpi" style="margin-bottom:16px;">
-      ${kpiCard('info','activity','Tổng QC hôm nay', todayResults.length, fmtDMY(today))}
-      ${kpiCard('pass','pass','QC đạt', pass, `${todayResults.length? round(pass/todayResults.length*100,0):0}% kết quả`, passTrend)}
-      ${kpiCard('warn','warning','QC cảnh báo', warn, 'Cần theo dõi thêm')}
-      ${kpiCard('fail','reject','QC không đạt', fail, `${state.alerts.filter(a=>a.severity==='reject'&&!a.resolved).length} chưa xử lý`)}
-      ${kpiCard('neutral','flask','Xét nghiệm theo dõi', testCount, `${machineCount} máy XN`)}
-      ${kpiCard('teal','box','Lot QC đang dùng', lotActive, `${state.lots.length} tổng số lot`)}
+      ${kpiCard('info','activity','Tổng QC hôm nay', todayRecords.length, `${baseResults.filter(r=>r.date===today).length} QC xét nghiệm · ${tcToday} TC · ${tdToday} TĐ · ${rwToday} Test nhanh/nước`, passTrend)}
+      ${kpiCard('pass','pass','QC đạt', pass, `${todayRecords.length?round(pass/todayRecords.length*100,0):0}% kết quả · tất cả module`, passTrend)}
+      ${kpiCard('warn','warning','QC cảnh báo', warn, `${warn} kết quả cảnh báo · tất cả module`)}
+      ${kpiCard('fail','reject','QC không đạt', fail, `${fail + (Array.isArray(state.alerts)?state.alerts.filter(a=>a.severity==='reject'&&!a.resolved).length:0)} chưa xử lý / cần xử lý`)}
+      <div class="card kpi neutral">
+        <div class="kpi-top"><div class="k-label">Xét nghiệm theo dõi & Lot QC đang dùng</div><div class="kpi-icon">${svgIcon(ICON_PATHS.flask,15)}</div></div>
+        <div class="k-value" style="font-size:22px;">${testCount} <span style="font-size:13px;font-weight:600;color:var(--text-muted)">xét nghiệm</span></div>
+        <div class="k-foot">${machineCount} máy XN · <b>${lotActive}</b> lot đang dùng / ${state.lots.length} tổng số lot</div>
+      </div>
+    </div>
+
+    <div class="grid" style="grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:16px;">
+      <div class="card">
+        <div class="card-head"><h3>QC VI SINH</h3><span class="hint">${tcTotal+tdTotal} phiếu</span></div>
+        <div class="card-body">
+          <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="kpi" style="padding:12px"><div class="k-label">QC Vi sinh (TC)</div><div class="k-value" style="font-size:25px">${tcTotal}</div><div class="k-foot">Hôm nay: ${tcToday}</div></div>
+            <div class="kpi" style="padding:12px"><div class="k-label">QC Vi sinh (TĐ)</div><div class="k-value" style="font-size:25px">${tdTotal}</div><div class="k-foot">Hôm nay: ${tdToday}</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>QC TEST NHANH & TEST NƯỚC</h3><span class="hint">${rwTotal} phiếu</span></div>
+        <div class="card-body">
+          <div class="k-value" style="font-size:30px">${rwTotal}</div>
+          <div class="hint" style="margin-top:4px">Đã nhập QC · Hôm nay: ${rwToday}</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>QC XÉT NGHIỆM MIỄN DỊCH</h3><span class="hint">${baseResults.length} phiếu</span></div>
+        <div class="card-body">
+          <div class="k-value" style="font-size:30px">${baseResults.filter(r=>r.date===today).length}</div>
+          <div class="hint" style="margin-top:4px">Đã nhập QC hôm nay</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>TỔNG QUAN CÁC MODULE QC</h3><span class="hint">Đã nhập</span></div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px 16px;font-size:12px;">
+            <div>QC xét nghiệm: <b>${baseResults.length}</b></div><div>Vi sinh (TC): <b>${tcTotal}</b></div>
+            <div>Vi sinh (TĐ): <b>${tdTotal}</b></div><div>Test nhanh/nước: <b>${rwTotal}</b></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="two-col">
       <div class="card">
-        <div class="card-head"><h3>Tình trạng QC hôm nay</h3><span class="hint">${todayResults.length} kết quả</span></div>
+        <div class="card-head"><h3>Tình trạng QC hôm nay</h3><span class="hint">${todayRecords.length} kết quả · tất cả module</span></div>
         <div class="card-body">
-          ${todayResults.length===0?`<div class="empty-state"><div class="ic">${svgIcon(ICON_PATHS.inbox,30)}</div><div class="t">Chưa có QC nào hôm nay</div><div class="d">Vào mục "Nhập QC" để bắt đầu.</div></div>`:`
-          <div class="table-wrap"><table><thead><tr><th>Giờ</th><th>Xét nghiệm</th><th>Máy</th><th>Level</th><th>Kết quả</th><th>Z</th><th>Trạng thái</th></tr></thead><tbody>
-          ${todayResults.slice().reverse().slice(0,10).map(r=>`
-            <tr style="cursor:pointer" onclick="openResultDetail('${r.id}')">
-              <td class="mono">${r.time}</td>
-              <td>${escapeHtml(byId(state.tests,r.testId)?.name||'')}</td>
-              <td>${escapeHtml(byId(state.machines,r.machineId)?.name||'')}</td>
-              <td>L${r.level}</td>
-              <td class="mono">${r.value}</td>
-              <td class="mono">${r.z>0?'+':''}${r.z}</td>
-              <td>${pillHtml(r.status)}</td>
-            </tr>`).join('')}
+          ${todayRecords.length===0?`<div class="empty-state"><div class="ic">${svgIcon(ICON_PATHS.inbox,30)}</div><div class="t">Chưa có QC nào hôm nay</div><div class="d">Vào mục "Nhập QC" để bắt đầu.</div></div>`:`
+          <div class="table-wrap"><table><thead><tr><th>Giờ</th><th>Module</th><th>Xét nghiệm / Chủng</th><th>Kết quả</th><th>Trạng thái</th></tr></thead><tbody>
+          ${todayRecords.slice().sort((a,b)=>String(b.r?.createdAt||b.date).localeCompare(String(a.r?.createdAt||a.date))).slice(0,50).map(x=>{
+            const r=x.r;
+            const name=x.type==='base'?(byId(state.tests,r.testId)?.name||''):
+              x.type==='tc'?(r.strain||''):
+              x.type==='td'?(r.testStrain||r.panelType||r.organism||''):
+              (state.rapidWaterTests.find(t=>t.id===r.testId)?.name||'');
+            const tm=x.type==='base'?(r.time||''):x.type==='rw'?(r.date||''):virologyFmtDate(x.date);
+            const status=x.status?pillHtml(x.status):'<span class="pill neutral"><span class="dot"></span>Chưa đánh giá</span>';
+            return `<tr><td class="mono">${escapeHtml(tm)}</td><td>${escapeHtml(x.module)}</td><td>${escapeHtml(name||'—')}</td><td class="mono">${escapeHtml(x.type==='base'?String(r.value??''):x.type==='rw'?`${r.run1Neg||'—'} / ${r.run1Pos||'—'} · ${r.run2Neg||'—'} / ${r.run2Pos||'—'}`:'Đã nhập')}</td><td>${status}</td></tr>`;
+          }).join('')}
           </tbody></table></div>`}
         </div>
       </div>
@@ -1590,14 +1711,14 @@ function renderDashboard(){
       <div class="card">
         <div class="card-head"><h3>Cảnh báo mới nhất</h3><a class="hint" style="cursor:pointer;color:var(--primary)" onclick="go('alerts')">Xem tất cả →</a></div>
         <div>
-          ${recentAlerts.length===0? `<div class="empty-state"><div class="ic">${svgIcon(ICON_PATHS.check,30)}</div><div class="t">Không có cảnh báo</div><div class="d">Mọi QC đều trong tầm kiểm soát.</div></div>` :
-          recentAlerts.map(a=>alertRowHtml(a)).join('')}
+          ${unifiedAlerts.length===0? `<div class="empty-state"><div class="ic">${svgIcon(ICON_PATHS.check,30)}</div><div class="t">Không có cảnh báo</div><div class="d">Mọi QC đều trong tầm kiểm soát.</div></div>` :
+          unifiedAlerts.map(x=>x.kind==='core'?alertRowHtml(x.data):moduleAlertHtml(x)).join('')}
         </div>
       </div>
     </div>
 
     <div class="card" style="margin-top:16px;">
-      <div class="card-head"><h3>Xu hướng 14 ngày gần nhất</h3><span class="hint">Toàn bộ xét nghiệm</span></div>
+      <div class="card-head"><h3>Xu hướng 14 ngày gần nhất</h3><span class="hint">Tất cả module có nhập QC</span></div>
       <div class="card-body"><div class="chart-wrap" style="height:220px;"><canvas id="trendChart"></canvas></div></div>
     </div>
   `;
@@ -1643,27 +1764,27 @@ function alertRowHtml(a){
 }
 function renderTrendChart(){
   const ctx=document.getElementById('trendChart'); if(!ctx) return;
+  virologyEnsureState();
   const days=[]; for(let i=13;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); days.push(fmtDate(d)); }
+  const baseResults=Array.isArray(state.results)?state.results:[];
+  const tcResults=Array.isArray(state.virologyTCResults)?state.virologyTCResults:[];
+  const tdResults=Array.isArray(state.virologyTDResults)?state.virologyTDResults:[];
+  const rwResults=Array.isArray(state.rapidWaterResults)?state.rapidWaterResults:[];
+  const dateOf=(r,type)=>type==='base'?String(r?.date||'').slice(0,10):type==='tc'?String(r?.qcDate||Object.values(r?.rowMeta||{}).find(x=>x?.qcDate)?.qcDate||r?.createdAt||'').slice(0,10):type==='td'?String(r?.testStart||r?.datetime||r?.createdAt||'').slice(0,10):String(r?.date||r?.createdAt||'').slice(0,10);
+  const statusText=v=>{const x=String(v??'').trim().toLowerCase();if(/không\s*đạt|khong\s*dat|reject|fail/.test(x))return'reject';if(/cảnh\s*báo|canh\s*bao|warning|warn/.test(x))return'warning';if(/đạt|dat|pass/.test(x))return'pass';return'';};
+  const tcStatus=r=>{const vs=Object.values(r?.rowMeta||{}).flatMap(x=>[x?.evaluation,x?.note]);for(const v of vs){if(statusText(v)==='reject')return'reject';}for(const v of vs){if(statusText(v)==='warning')return'warning';}for(const v of vs){if(statusText(v)==='pass')return'pass';}return'';};
+  const tdStatus=r=>{const vs=[r?.qcStatus,r?.status,r?.specialMessages,r?.rawData?.['QC Status'],r?.rawData?.['Status']];for(const v of vs){if(statusText(v)==='reject')return'reject';}for(const v of vs){if(statusText(v)==='warning')return'warning';}for(const v of vs){if(statusText(v)==='pass')return'pass';}return'';};
+  const rwStatus=r=>{const e=String(r?.controlLot||'').trim(),vs=[r?.run1Neg,r?.run1Pos,r?.run2Neg,r?.run2Pos].filter(v=>String(v??'').trim()!=='');if(!vs.length)return'';if(e&&vs.some(v=>String(v).trim()!==e))return'reject';return e?'pass':'';};
+  const all=[...baseResults.map(r=>({d:dateOf(r,'base'),s:r.status})),...tcResults.map(r=>({d:dateOf(r,'tc'),s:tcStatus(r)})),...tdResults.map(r=>({d:dateOf(r,'td'),s:tdStatus(r)})),...rwResults.map(r=>({d:dateOf(r,'rw'),s:rwStatus(r)}))];
   const dataPass=[],dataWarn=[],dataFail=[];
-  days.forEach(d=>{
-    const rs=state.results.filter(r=>r.date===d);
-    dataPass.push(rs.filter(r=>r.status==='pass').length);
-    dataWarn.push(rs.filter(r=>r.status==='warning').length);
-    dataFail.push(rs.filter(r=>r.status==='reject').length);
-  });
+  days.forEach(d=>{const rs=all.filter(r=>r.d===d);dataPass.push(rs.filter(r=>r.s==='pass').length);dataWarn.push(rs.filter(r=>r.s==='warning').length);dataFail.push(rs.filter(r=>r.s==='reject').length);});
   destroyChart('trend');
   const css=getComputedStyle(document.documentElement);
-  charts.trend=new Chart(ctx,{type:'bar',
-    data:{labels:days.map(d=>d.slice(5)), datasets:[
-      {label:'Đạt',data:dataPass,backgroundColor:css.getPropertyValue('--success').trim(),borderRadius:3,maxBarThickness:16},
-      {label:'Cảnh báo',data:dataWarn,backgroundColor:css.getPropertyValue('--warning').trim(),borderRadius:3,maxBarThickness:16},
-      {label:'Không đạt',data:dataFail,backgroundColor:css.getPropertyValue('--danger').trim(),borderRadius:3,maxBarThickness:16},
-    ]},
-    options:{responsive:true,maintainAspectRatio:false,
-      scales:{x:{stacked:true,grid:{display:false},ticks:{color:css.getPropertyValue('--text-muted').trim(),font:{family:'Times New Roman',size:10.5}}},
-               y:{stacked:true,grid:{color:css.getPropertyValue('--border').trim()},ticks:{color:css.getPropertyValue('--text-muted').trim(),precision:0}}},
-      plugins:{legend:{position:'bottom',labels:{color:css.getPropertyValue('--text-muted').trim(),boxWidth:12,font:{size:11.5}}}}
-    }});
+  charts.trend=new Chart(ctx,{type:'bar',data:{labels:days.map(d=>d.slice(5)),datasets:[
+    {label:'Đạt',data:dataPass,backgroundColor:css.getPropertyValue('--success').trim(),borderRadius:3,maxBarThickness:16},
+    {label:'Cảnh báo',data:dataWarn,backgroundColor:css.getPropertyValue('--warning').trim(),borderRadius:3,maxBarThickness:16},
+    {label:'Không đạt',data:dataFail,backgroundColor:css.getPropertyValue('--danger').trim(),borderRadius:3,maxBarThickness:16},
+  ]},options:{responsive:true,maintainAspectRatio:false,scales:{x:{stacked:true,grid:{display:false},ticks:{color:css.getPropertyValue('--text-muted').trim(),font:{family:'Times New Roman',size:10.5}}},y:{stacked:true,grid:{color:css.getPropertyValue('--border').trim()},ticks:{color:css.getPropertyValue('--text-muted').trim(),precision:0}}},plugins:{legend:{position:'bottom',labels:{color:css.getPropertyValue('--text-muted').trim(),boxWidth:12,font:{size:11.5}}}}}});
 }
 
 /* =====================================================================
@@ -1750,18 +1871,43 @@ function renderRapidWaterEntry(){
       <div class="card-head"><div><h3>Kết quả Test nhanh & Test nước gần đây</h3><span class="hint">${recent.length} phiếu phù hợp với bộ lọc</span></div><div class="btn-row"><label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600"><span>Lọc theo xét nghiệm</span><select onchange="setRapidWaterTestFilter(this.value)" style="min-width:220px"><option value="">Tất cả xét nghiệm</option>${state.rapidWaterTests.map(t=>`<option value="${escapeHtml(t.id)}" ${filter.testId===t.id?'selected':''}>${escapeHtml(t.name)} · ${escapeHtml(t.category)}</option>`).join('')}</select></label><button class="btn ghost sm" onclick="setRapidWaterTestFilter('')">Xóa lọc</button></div></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Ngày</th><th>Xét nghiệm</th><th>Loại</th><th>Lần 1</th><th>Lần 2</th><th>Người thực hiện</th><th>Ghi chú</th></tr></thead>
+          <thead><tr><th>Ngày</th><th>Xét nghiệm</th><th>Loại</th><th>Chứng / Mức</th><th>Lần 1</th><th>Lần 2</th><th>Người thực hiện</th><th>Ghi chú</th></tr></thead>
           <tbody>
             ${recent.length?recent.map(r=>{
               const t=state.rapidWaterTests.find(x=>x.id===r.testId);
               const run1=`Âm: ${r.run1Neg||'—'} · Dương: ${r.run1Pos||'—'}`;
               const run2=`Âm: ${r.run2Neg||'—'} · Dương: ${r.run2Pos||'—'}`;
-              return `<tr><td class="mono">${escapeHtml(r.date)}</td><td><b>${escapeHtml(t?.name||'')}</b></td><td>${escapeHtml(t?.category||'')}</td><td>${escapeHtml(run1)}</td><td>${escapeHtml(run2)}</td><td>${escapeHtml(r.performer||'')}</td><td>${escapeHtml(r.note||'—')} <button type="button" class="btn sm" onclick="editRapidWaterQC('${escapeHtml(r.id)}')">Sửa phiếu</button></td></tr>`;
-            }).join(''):`<tr><td colspan="7" class="tbl-empty">Chưa có phiếu Test nhanh / Test nước.</td></tr>`}
+              return `<tr><td class="mono">${escapeHtml(r.date)}</td><td><b>${escapeHtml(t?.name||'')}</b></td><td>${escapeHtml(t?.category||'')}</td><td>${escapeHtml(r.controlLot||r.controlLevel||'—')}</td><td>${escapeHtml(run1)}</td><td>${escapeHtml(run2)}</td><td>${escapeHtml(r.performer||'')}</td><td>${escapeHtml(r.note||'—')} <button type="button" class="btn sm" onclick="previewRapidWaterQC('${escapeHtml(r.id)}')">👁 Xem trước</button> <button type="button" class="btn sm" onclick="editRapidWaterQC('${escapeHtml(r.id)}')">Sửa phiếu</button></td></tr>`;
+            }).join(''):`<tr><td colspan="8" class="tbl-empty">Chưa có phiếu Test nhanh / Test nước.</td></tr>`}
           </tbody>
         </table>
       </div>
     </div>`;
+}
+function previewRapidWaterQC(recordId){
+  const record=Array.isArray(state.rapidWaterResults)?state.rapidWaterResults.find(r=>r.id===recordId):null;
+  if(!record){toast('warning','Không tìm thấy phiếu','Phiếu Test nhanh / Test nước không còn tồn tại.');return false;}
+  const test=state.rapidWaterTests.find(t=>t.id===record.testId);
+  const esc=v=>escapeHtml(v??'');
+  const run1Neg=record.run1Neg||'—', run1Pos=record.run1Pos||'—';
+  const run2Neg=record.run2Neg||'—', run2Pos=record.run2Pos||'—';
+  const body=`<div style="font-family:'Times New Roman',serif;font-size:12px">
+    <div style="text-align:center"><b>BỆNH VIỆN PHONG - DA LIỄU TW QUY HÒA</b><h2 style="margin:6px 0">PHIẾU QC TEST NHANH & TEST NƯỚC</h2></div>
+    <div class="two-col" style="gap:12px">
+      <div><p><b>Ngày:</b> ${esc(record.date)}</p><p><b>Xét nghiệm:</b> ${esc(test?.name||'—')}</p><p><b>Loại:</b> ${esc(test?.category||'—')}</p><p><b>Phương pháp:</b> ${esc(record.method||'—')}</p><p><b>Nhà sản xuất:</b> ${esc(record.manufacturer||'—')}</p><p><b>LOT hóa chất:</b> ${esc(record.reagentLot||'—')}</p><p><b>Hạn sử dụng:</b> ${esc(record.expiry||'—')}</p></div>
+      <div><p><b>Chứng / Mức:</b> ${esc(record.controlLot||'—')}</p><p><b>LOT:</b> ${esc(record.qcLot||'—')}</p><p><b>Người thực hiện:</b> ${esc(record.performer||'—')}</p><p><b>Người xem xét:</b> ${esc(record.reviewer||'—')}</p><p><b>Ghi chú:</b> ${esc(record.note||'—')}</p></div>
+    </div>
+    <h3 style="margin:10px 0 5px">Kết quả chạy lần 1 và lần 2</h3>
+    <table style="width:100%;border-collapse:collapse"><thead><tr><th style="border:1px solid #777;padding:5px">Lần chạy</th><th style="border:1px solid #777;padding:5px">Chứng Âm</th><th style="border:1px solid #777;padding:5px">Chứng Dương</th></tr></thead><tbody>
+      <tr><td style="border:1px solid #777;padding:5px">Lần 1</td><td style="border:1px solid #777;padding:5px">${esc(run1Neg)}</td><td style="border:1px solid #777;padding:5px">${esc(run1Pos)}</td></tr>
+      <tr><td style="border:1px solid #777;padding:5px">Lần 2</td><td style="border:1px solid #777;padding:5px">${esc(run2Neg)}</td><td style="border:1px solid #777;padding:5px">${esc(run2Pos)}</td></tr>
+    </tbody></table>
+    <p><b>Nhận xét:</b> ${esc(record.comment||'—')}</p>
+    <p><b>Hành động khắc phục:</b> ${esc(record.corrective||'—')}</p>
+    <p><b>Hành động phòng ngừa:</b> ${esc(record.preventive||'—')}</p>
+  </div><div class="btn-row" style="margin-top:14px"><button class="btn primary" onclick="printRapidWaterQC('${esc(record.id)}');closeModal()">🖨 In / Xuất PDF</button><button class="btn ghost" onclick="closeModal()">Đóng</button></div>`;
+  showModal('Xem trước · Test nhanh & Test nước',body,'wide');
+  return false;
 }
 function editRapidWaterQC(recordId){
   const record=Array.isArray(state.rapidWaterResults)?state.rapidWaterResults.find(r=>r.id===recordId):null;
@@ -1771,12 +1917,13 @@ function editRapidWaterQC(recordId){
   window.scrollTo(0,0);
   return false;
 }
-function printRapidWaterQC(){
+function printRapidWaterQC(recordId){
   try{
     const val=id=>document.getElementById(id)?.value||'';
-    const currentTestId=val('rw_test');
+    const selectedRecord=recordId&&Array.isArray(state.rapidWaterResults)?state.rapidWaterResults.find(r=>r.id===recordId):null;
+    const currentTestId=selectedRecord?.testId||val('rw_test');
     const rapidFilter=getRapidWaterFilter();
-    const filteredRows=getFilteredRapidWaterResults();
+    const filteredRows=recordId ? (Array.isArray(state.rapidWaterResults)?state.rapidWaterResults.filter(r=>r?.id===recordId):[]) : getFilteredRapidWaterResults();
 
     /*
      * FIX: Khi đang lọc theo một xét nghiệm (ví dụ ASLO), phải in TOÀN BỘ
@@ -1787,7 +1934,7 @@ function printRapidWaterQC(){
      * Nếu không có bộ lọc, giữ nguyên hành vi cũ: ưu tiên phiếu đang nhập
      * hoặc phiếu vừa lưu để không làm thay đổi chức năng hiện tại.
      */
-    const hasTestFilter=!!rapidFilter.testId;
+    const hasTestFilter=!!rapidFilter.testId && !recordId;
     let records=[];
 
     if(hasTestFilter){
@@ -2413,7 +2560,7 @@ function openAlertModal(alertId){
     ${a.handling? `<div class="divider"></div><div class="section-title">Đã xử lý</div>
       <p style="font-size:12.8px;color:var(--text-muted);margin:4px 0;"><b style="color:var(--text)">Nguyên nhân:</b> ${escapeHtml(a.handling.cause)}</p>
       <p style="font-size:12.8px;color:var(--text-muted);margin:4px 0;"><b style="color:var(--text)">Hành động khắc phục:</b> ${escapeHtml(a.handling.action)}</p>
-      <p style="font-size:12.8px;color:var(--text-muted);margin:4px 0;"><b style="color:var(--text)">Kết quả chạy lại:</b> ${a.handling.rerunValue}</p>
+      <p style="font-size:12.8px;color:var(--text-muted);margin:4px 0;"><b style="color:var(--text)">Kết quả chạy lại:</b> ${a.handling.rerunValue}</p><p style="font-size:12.8px;color:var(--text-muted);margin:4px 0;"><b style="color:var(--text)">Nhận xét:</b> ${escapeHtml(a.handling.comment||'—')}</p>
       <p style="font-size:12.8px;color:var(--text-muted);margin:4px 0;"><b style="color:var(--text)">Người thực hiện / Người xem xét:</b> ${escapeHtml(a.handling.performedBy)} / ${escapeHtml(a.handling.reviewedBy)}</p>`:''}
   `;
   showModal('Chi tiết cảnh báo', body);
@@ -2490,12 +2637,13 @@ function submitHandling(ev, alertId){
   const cause=document.getElementById('h_cause').value.trim();
   const action=document.getElementById('h_action').value.trim();
   const rerun=document.getElementById('h_rerun').value;
+  const comment=document.getElementById('h_comment')?.value.trim()||'';
   const performer=document.getElementById('h_performer').value;
   const reviewer=document.getElementById('h_reviewer').value;
   if(!cause||!action||rerun===''||!performer||!reviewer){ toast('reject','Thiếu thông tin','Vui lòng điền đầy đủ trước khi đóng cảnh báo.'); return false; }
   const a=state.alerts.find(x=>x.id===alertId);
   a.resolved=true;
-  a.handling={cause,action,rerunValue:round(parseFloat(rerun),4),performedBy:performer,reviewedBy:reviewer,datetime:new Date().toISOString()};
+  a.handling={cause,action,rerunValue:round(parseFloat(rerun),4),comment,performedBy:performer,reviewedBy:reviewer,datetime:new Date().toISOString()};
   state.audit.unshift({id:uid('AU'),time:new Date().toISOString(),user:performer,action:'Xử lý QC không đạt',
     detail:`${a.testName} · Level ${a.level} · Nguyên nhân: ${cause} · Người xem xét: ${reviewer}`});
   queueSave();
@@ -2933,8 +3081,8 @@ function generateReport(){
   if(type==='handling'){
     const handled=state.alerts.filter(a=>a.handling && a.time.slice(0,10)>=from && a.time.slice(0,10)<=to);
     out.innerHTML=`<div class="card"><div class="card-head"><h3>Báo cáo xử lý QC</h3><span class="hint">${fmtDMY(from)} – ${fmtDMY(to)}</span></div>
-    <div class="table-wrap"><table><thead><tr><th>Xét nghiệm</th><th>Máy</th><th>Nguyên nhân</th><th>Hành động</th><th>Chạy lại</th><th>Người thực hiện</th><th>Người xem xét</th></tr></thead><tbody>
-    ${handled.map(a=>`<tr><td>${escapeHtml(a.testName)} L${a.level}</td><td>${escapeHtml(a.machineName)}</td><td>${escapeHtml(a.handling.cause)}</td><td>${escapeHtml(a.handling.action)}</td><td class="mono">${a.handling.rerunValue}</td><td>${escapeHtml(a.handling.performedBy)}</td><td>${escapeHtml(a.handling.reviewedBy)}</td></tr>`).join('') || `<tr><td colspan="7" class="tbl-empty">Không có dữ liệu</td></tr>`}
+    <div class="table-wrap"><table><thead><tr><th>Xét nghiệm</th><th>Máy</th><th>Nguyên nhân</th><th>Hành động</th><th>Chạy lại</th><th>Nhận xét</th><th>Người thực hiện</th><th>Người xem xét</th></tr></thead><tbody>
+    ${handled.map(a=>`<tr><td>${escapeHtml(a.testName)} L${a.level}</td><td>${escapeHtml(a.machineName)}</td><td>${escapeHtml(a.handling.cause)}</td><td>${escapeHtml(a.handling.action)}</td><td class="mono">${a.handling.rerunValue}</td><td>${escapeHtml(a.handling.comment||'—')}</td><td>${escapeHtml(a.handling.performedBy)}</td><td>${escapeHtml(a.handling.reviewedBy)}</td></tr>`).join('') || `<tr><td colspan="8" class="tbl-empty">Không có dữ liệu</td></tr>`}
     </tbody></table></div></div>`;
     return;
   }
@@ -3466,7 +3614,7 @@ function generateReport(){
   if(type==='handling'){
     const handled=state.alerts.filter(a=>a.handling&&a.time.slice(0,10)>=from&&a.time.slice(0,10)<=to);
     lastReportRows=handled.slice();
-    out.innerHTML=`<div class="card report-print-area"><div class="card-head"><h3>Báo cáo xử lý QC</h3><span class="hint">${fmtDMY(from)} – ${fmtDMY(to)}</span></div><div class="table-wrap"><table><thead><tr><th>Xét nghiệm</th><th>Máy</th><th>Nguyên nhân</th><th>Hành động</th><th>Chạy lại</th><th>Người thực hiện</th><th>Người xem xét</th></tr></thead><tbody>${handled.map(a=>`<tr><td>${escapeHtml(a.testName)} L${a.level}</td><td>${escapeHtml(a.machineName)}</td><td>${escapeHtml(a.handling.cause)}</td><td>${escapeHtml(a.handling.action)}</td><td class="mono">${a.handling.rerunValue}</td><td>${escapeHtml(a.handling.performedBy)}</td><td>${escapeHtml(a.handling.reviewedBy)}</td></tr>`).join('')||'<tr><td colspan="7" class="tbl-empty">Không có dữ liệu</td></tr>'}</tbody></table></div></div>`;
+    out.innerHTML=`<div class="card report-print-area"><div class="card-head"><h3>Báo cáo xử lý QC</h3><span class="hint">${fmtDMY(from)} – ${fmtDMY(to)}</span></div><div class="table-wrap"><table><thead><tr><th>Xét nghiệm</th><th>Máy</th><th>Nguyên nhân</th><th>Hành động</th><th>Chạy lại</th><th>Nhận xét</th><th>Người thực hiện</th><th>Người xem xét</th></tr></thead><tbody>${handled.map(a=>`<tr><td>${escapeHtml(a.testName)} L${a.level}</td><td>${escapeHtml(a.machineName)}</td><td>${escapeHtml(a.handling.cause)}</td><td>${escapeHtml(a.handling.action)}</td><td class="mono">${a.handling.rerunValue}</td><td>${escapeHtml(a.handling.comment||'—')}</td><td>${escapeHtml(a.handling.performedBy)}</td><td>${escapeHtml(a.handling.reviewedBy)}</td></tr>`).join('')||'<tr><td colspan="7" class="tbl-empty">Không có dữ liệu</td></tr>'}</tbody></table></div></div>`;
     return;
   }
   const total=rows.length,pass=rows.filter(r=>r.status==='pass').length,warn=rows.filter(r=>r.status==='warning').length,fail=rows.filter(r=>r.status==='reject').length;
@@ -3623,7 +3771,7 @@ function generateReport(){
           <div><b>Trạng thái:</b> ${escapeHtml(STATUS_LABEL[a.severity==='reject'?'reject':'pending']||'Không đạt')}</div>
           <div class="full"><b>Nguyên nhân:</b> ${escapeHtml(a.handling?.cause||'—')}</div>
           <div class="full"><b>Hành động khắc phục:</b> ${escapeHtml(a.handling?.action||'—')}</div>
-          <div><b>Kết quả chạy lại:</b> ${escapeHtml(a.handling?.rerunValue??'—')}</div>
+          <div><b>Kết quả chạy lại:</b> ${escapeHtml(a.handling?.rerunValue??'—')}</div><div><b>Nhận xét:</b> ${escapeHtml(a.handling?.comment||'—')}</div>
           <div class="rh-personnel">
             <div><b>Người thực hiện:</b> ${escapeHtml(a.handling?.performedBy||'—')}</div>
             <div><b>Người xem xét:</b> ${escapeHtml(a.handling?.reviewedBy||'—')}</div>
@@ -3810,7 +3958,7 @@ function generateReport(){
           <div><b>Trạng thái:</b> ${escapeHtml(STATUS_LABEL[a.severity==='reject'?'reject':'pending']||'Không đạt')}</div>
           <div class="full"><b>Nguyên nhân:</b> ${escapeHtml(a.handling?.cause||'—')}</div>
           <div class="full"><b>Hành động khắc phục:</b> ${escapeHtml(a.handling?.action||'—')}</div>
-          <div><b>Kết quả chạy lại:</b> ${escapeHtml(a.handling?.rerunValue??'—')}</div>
+          <div><b>Kết quả chạy lại:</b> ${escapeHtml(a.handling?.rerunValue??'—')}</div><div><b>Nhận xét:</b> ${escapeHtml(a.handling?.comment||'—')}</div>
           <div class="rh-personnel">
             <div><b>Người thực hiện:</b> ${escapeHtml(a.handling?.performedBy||'—')}</div>
             <div><b>Người xem xét:</b> ${escapeHtml(a.handling?.reviewedBy||'—')}</div>
@@ -3943,13 +4091,13 @@ function openHandlingModal(alertId){
   const a=state.alerts.find(x=>x.id===alertId);if(!a){toast('warning','Không tìm thấy cảnh báo','');return;}
   const steps=['Không đạt','Đang xử lý','Chạy lại QC','Đạt → Đóng'];
   const users=state.settings.users.map(u=>`<option ${u===state.settings.currentUser?'selected':''}>${escapeHtml(u)}</option>`).join('');
-  const body=`<div class="wizard-status">${steps.map((s,i)=>`<div class="st-item ${i===0?'done':(i===1?'cur':'')}"><div class="dot">${i+1}</div><div class="lbl">${s}</div></div>${i<steps.length-1?'<div class="ln"></div>':''}`).join('')}</div><div class="card" style="background:var(--danger-bg);border:none;margin-bottom:16px;"><div class="card-body" style="padding:12px 14px;font-size:12.8px;"><b style="color:var(--danger);">${escapeHtml(a.testName)} — Level ${a.level}</b><br>${escapeHtml(a.machineName)} · Lot ${escapeHtml(a.lotName)} · KQ ${a.value} (Mean ${a.mean} ± ${a.sd}) · Vi phạm ${escapeHtml(a.rule)}</div></div><form id="handlingForm" onsubmit="return submitHandling(event,'${a.id}')"><label class="field"><span class="fl-label">Nguyên nhân *</span><textarea id="h_cause" required placeholder="VD: Lot QC gần hết hạn, lỗi thao tác, trôi hiệu chuẩn máy…"></textarea></label><label class="field"><span class="fl-label">Hành động khắc phục *</span><textarea id="h_action" required placeholder="VD: Hiệu chuẩn lại máy, thay lot mới, lắc đều QC…"></textarea></label><div class="form-grid"><label class="field"><span class="fl-label">Kết quả chạy lại *</span><input type="number" step="any" id="h_rerun" required placeholder="Giá trị QC sau khi chạy lại"></label><label class="field"><span class="fl-label">Ngày giờ xử lý</span><input type="text" value="${new Date().toLocaleString('vi-VN')}" readonly></label></div><div class="form-grid"><label class="field"><span class="fl-label">Người thực hiện *</span><select id="h_performer" required>${users}</select></label><label class="field"><span class="fl-label">Người xem xét *</span><select id="h_reviewer" required>${users}</select></label></div><p style="font-size:11.5px;color:var(--text-muted);margin:2px 0 14px;">* Không thể đóng cảnh báo nếu chưa điền đầy đủ thông tin xử lý cần thiết.</p><div class="btn-row"><button type="submit" class="btn primary">✓ Hoàn tất & Đóng cảnh báo</button><button type="button" class="btn ghost" onclick="closeModal()">Để sau</button></div></form>`;
+  const body=`<div class="wizard-status">${steps.map((s,i)=>`<div class="st-item ${i===0?'done':(i===1?'cur':'')}"><div class="dot">${i+1}</div><div class="lbl">${s}</div></div>${i<steps.length-1?'<div class="ln"></div>':''}`).join('')}</div><div class="card" style="background:var(--danger-bg);border:none;margin-bottom:16px;"><div class="card-body" style="padding:12px 14px;font-size:12.8px;"><b style="color:var(--danger);">${escapeHtml(a.testName)} — Level ${a.level}</b><br>${escapeHtml(a.machineName)} · Lot ${escapeHtml(a.lotName)} · KQ ${a.value} (Mean ${a.mean} ± ${a.sd}) · Vi phạm ${escapeHtml(a.rule)}</div></div><form id="handlingForm" onsubmit="return submitHandling(event,'${a.id}')"><label class="field"><span class="fl-label">Nguyên nhân *</span><textarea id="h_cause" required placeholder="VD: Lot QC gần hết hạn, lỗi thao tác, trôi hiệu chuẩn máy…"></textarea></label><label class="field"><span class="fl-label">Hành động khắc phục *</span><textarea id="h_action" required placeholder="VD: Hiệu chuẩn lại máy, thay lot mới, lắc đều QC…"></textarea></label><div class="form-grid"><label class="field"><span class="fl-label">Kết quả chạy lại *</span><input type="number" step="any" id="h_rerun" required placeholder="Giá trị QC sau khi chạy lại"></label><label class="field"><span class="fl-label">Nhận xét</span><input type="text" id="h_comment" placeholder="Đạt / Không đạt"></label><label class="field"><span class="fl-label">Ngày giờ xử lý</span><input type="text" value="${new Date().toLocaleString('vi-VN')}" readonly></label></div><div class="form-grid"><label class="field"><span class="fl-label">Người thực hiện *</span><select id="h_performer" required>${users}</select></label><label class="field"><span class="fl-label">Người xem xét *</span><select id="h_reviewer" required>${users}</select></label></div><p style="font-size:11.5px;color:var(--text-muted);margin:2px 0 14px;">* Không thể đóng cảnh báo nếu chưa điền đầy đủ thông tin xử lý cần thiết.</p><div class="btn-row"><button type="submit" class="btn primary">✓ Hoàn tất & Đóng cảnh báo</button><button type="button" class="btn ghost" onclick="closeModal()">Để sau</button></div></form>`;
   showModal('Quy trình xử lý QC không đạt',body,'wide');
 }
 
 function openAlertModal(alertId){
   const a=state.alerts.find(x=>x.id===alertId);if(!a)return;
-  const body=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">${pillHtml(a.severity)}${a.resolved?'<span class="pill pass"><span class="dot"></span>Đã xử lý</span>':'<span class="pill reject"><span class="dot"></span>Chưa xử lý</span>'}</div><table style="width:100%;font-size:13px;"><tr><td style="color:var(--text-muted);padding:5px 0;">Xét nghiệm</td><td style="text-align:right;font-weight:600;">${escapeHtml(a.testName)} — Level ${a.level}</td></tr><tr><td style="color:var(--text-muted);padding:5px 0;">Máy</td><td style="text-align:right;">${escapeHtml(a.machineName)}</td></tr><tr><td style="color:var(--text-muted);padding:5px 0;">Lot</td><td style="text-align:right;">${escapeHtml(a.lotName)}</td></tr><tr><td style="color:var(--text-muted);padding:5px 0;">Vi phạm Westgard</td><td style="text-align:right;">${escapeHtml(a.rule)}</td></tr><tr><td style="color:var(--text-muted);padding:5px 0;">Kết quả / Mean / SD</td><td style="text-align:right;">${a.value} / ${a.mean} / ${a.sd}</td></tr><tr><td style="color:var(--text-muted);padding:5px 0;">Thời gian phát hiện</td><td style="text-align:right;">${a.time}</td></tr></table>${a.severity==='reject'&&!a.resolved?`<button class="btn danger" style="margin-top:14px;width:100%;justify-content:center;" onclick="closeModal();openHandlingModal('${a.id}')">Mở quy trình xử lý →</button>`:''}${a.handling?`<div class="divider"></div><div class="section-title">Đã xử lý</div><p style="font-size:12.8px;color:var(--text-muted);margin:4px 0;"><b style="color:var(--text)">Nguyên nhân:</b> ${escapeHtml(a.handling.cause)}</p><p style="font-size:12.8px;color:var(--text-muted);margin:4px 0;"><b style="color:var(--text)">Hành động khắc phục:</b> ${escapeHtml(a.handling.action)}</p><p style="font-size:12.8px;color:var(--text-muted);margin:4px 0;"><b style="color:var(--text)">Kết quả chạy lại:</b> ${a.handling.rerunValue}</p><p style="font-size:12.8px;color:var(--text-muted);margin:4px 0;"><b style="color:var(--text)">Người thực hiện:</b> ${escapeHtml(a.handling.performedBy||'—')}</p><p style="font-size:12.8px;color:var(--text-muted);margin:4px 0;"><b style="color:var(--text)">Người xem xét:</b> ${escapeHtml(a.handling.reviewedBy||'—')}</p>`:''}`;
+  const body=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">${pillHtml(a.severity)}${a.resolved?'<span class="pill pass"><span class="dot"></span>Đã xử lý</span>':'<span class="pill reject"><span class="dot"></span>Chưa xử lý</span>'}</div><table style="width:100%;font-size:13px;"><tr><td style="color:var(--text-muted);padding:5px 0;">Xét nghiệm</td><td style="text-align:right;font-weight:600;">${escapeHtml(a.testName)} — Level ${a.level}</td></tr><tr><td style="color:var(--text-muted);padding:5px 0;">Máy</td><td style="text-align:right;">${escapeHtml(a.machineName)}</td></tr><tr><td style="color:var(--text-muted);padding:5px 0;">Lot</td><td style="text-align:right;">${escapeHtml(a.lotName)}</td></tr><tr><td style="color:var(--text-muted);padding:5px 0;">Vi phạm Westgard</td><td style="text-align:right;">${escapeHtml(a.rule)}</td></tr><tr><td style="color:var(--text-muted);padding:5px 0;">Kết quả / Mean / SD</td><td style="text-align:right;">${a.value} / ${a.mean} / ${a.sd}</td></tr><tr><td style="color:var(--text-muted);padding:5px 0;">Thời gian phát hiện</td><td style="text-align:right;">${a.time}</td></tr></table>${a.severity==='reject'&&!a.resolved?`<button class="btn danger" style="margin-top:14px;width:100%;justify-content:center;" onclick="closeModal();openHandlingModal('${a.id}')">Mở quy trình xử lý →</button>`:''}${a.handling?`<div class="divider"></div><div class="section-title">Đã xử lý</div><p style="font-size:12.8px;color:var(--text-muted);margin:4px 0;"><b style="color:var(--text)">Nguyên nhân:</b> ${escapeHtml(a.handling.cause)}</p><p style="font-size:12.8px;color:var(--text-muted);margin:4px 0;"><b style="color:var(--text)">Hành động khắc phục:</b> ${escapeHtml(a.handling.action)}</p><p style="font-size:12.8px;color:var(--text-muted);margin:4px 0;"><b style="color:var(--text)">Kết quả chạy lại:</b> ${a.handling.rerunValue}</p><p style="font-size:12.8px;color:var(--text-muted);margin:4px 0;"><b style="color:var(--text)">Nhận xét:</b> ${escapeHtml(a.handling.comment||'—')}</p><p style="font-size:12.8px;color:var(--text-muted);margin:4px 0;"><b style="color:var(--text)">Người thực hiện:</b> ${escapeHtml(a.handling.performedBy||'—')}</p><p style="font-size:12.8px;color:var(--text-muted);margin:4px 0;"><b style="color:var(--text)">Người xem xét:</b> ${escapeHtml(a.handling.reviewedBy||'—')}</p>`:''}`;
   showModal('Chi tiết cảnh báo',body);
 }
 
@@ -4294,7 +4442,7 @@ function virologyTCGridHtml(strain, values){
       ${resultRows}
     </tbody></table></div>
     <div class="virology-codes"><b>Mã kháng sinh:</b> ${escapeHtml(t.codes)}</div>
-    <div class="btn-row" style="margin-top:12px"><button class="btn primary" onclick="saveVirologyTC()">Lưu QC Vi sinh (TC)</button><button class="btn" onclick="editVirologyTC()">Sửa phiếu</button><button class="btn ghost" onclick="resetVirologyTCInputs()">Xoá ô nhập</button></div>
+    <div class="btn-row" style="margin-top:12px"><button class="btn primary" onclick="saveVirologyTC()">Lưu QC Vi sinh (TC)</button><button class="btn ghost" onclick="resetVirologyTCInputs()">Xoá ô nhập</button></div>
   </div>`;
 }
 function renderVirologyTC(){
@@ -4488,7 +4636,7 @@ function renderVirologyTD(targetEl){
         <div class="phoenix-td-info"><span><b>Thư mục:</b> <em id="phoenixWatchFolder">Chưa chọn</em></span><span><b>Định dạng:</b> TXT / CSV / TSV / JSON</span><span><b>Tần suất:</b> tự kiểm tra mỗi 3 giây khi cổng đang mở</span></div>
       </div>
     </div>
-    <div class="td-actions"><button class="btn primary" onclick="savePhoenixQCReport()">Lưu QC Vi sinh (TĐ)</button><button class="btn" onclick="editPhoenixQCReport()">Sửa phiếu</button><button class="btn ghost" onclick="resetPhoenixQCReport()">Xoá ô nhập</button></div>
+    <div class="td-actions"><button class="btn primary" onclick="savePhoenixQCReport()">Lưu QC Vi sinh (TĐ)</button><button class="btn ghost" onclick="resetPhoenixQCReport()">Xoá ô nhập</button></div>
   </div>`;
   updatePhoenixWatchFolderLabel();
   if(phoenixWatchHandle) setPhoenixWatchStatus('pass','Đang tự động nhận KQ');
