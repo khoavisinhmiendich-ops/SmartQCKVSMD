@@ -1375,7 +1375,7 @@ const NAV=[
     {id:'rapidwater-lots', label:'Lot QC Test nhanh & Test nước', icon:iconPackageCheck()},
   ]},
   {group:'Báo cáo & Hệ thống', items:[
-    {id:'reports', label:'Báo cáo', icon:iconReport()},
+    {id:'reports', label:'Báo cáo QC XNMDTĐ', icon:iconReport()},
     {id:'whonet', label:'Kết nối WHONET', icon:iconWhonet()},
     {id:'audit', label:'Nhật kí', icon:iconHistoryClock()},
     {id:'users', label:'Người dùng', icon:iconUser()},
@@ -1455,7 +1455,7 @@ const VIEW_META={
   machines:['Máy xét nghiệm','Danh mục thiết bị'],
   lots:['Lot QC Máy miễn dịch tự động','Quản lý lô QC - theo Level 1 & Level 2'],
   'rapidwater-lots':['Lot QC Test nhanh & Test nước','Quản lý Lot - theo chứng Âm và chứng Dương'],
-  reports:['Báo cáo','Xuất báo cáo QC'],
+  reports:['Báo cáo XN Miễn dịch TĐ','Xuất báo cáo QC'],
   audit:['Nhật kí','Lịch sử thao tác — không thể chỉnh sửa hoặc xoá'],
   users:['Người dùng','Danh sách người dùng hệ thống'],
   system:['Hệ thống','Cấu hình chung']
@@ -3017,7 +3017,7 @@ function submitLot(ev,id){
 }
 
 /* =====================================================================
-   BÁO CÁO
+   BÁO CÁO XÉT NGHIỆM MIỄN DỊCH TỰ ĐỘNG
    ===================================================================== */
 function renderReports(){
   const el=document.getElementById('view-reports');
@@ -3026,7 +3026,7 @@ function renderReports(){
       <div class="card-head"><h3>Xuất báo cáo</h3><div id="rp_machine_filter" style="display:none;align-items:center;gap:8px;"><span class="hint" style="white-space:nowrap;">Lọc theo máy</span><select id="rp_machine" onchange="generateReport()" style="min-width:220px;max-width:320px;"><option value="">— Chọn máy —</option>${(state.machines||[]).map(m=>`<option value="${escapeHtml(m.id)}">${escapeHtml(m.name||m.id||'')}</option>`).join('')}</select></div></div>
       <div class="card-body">
         <div class="form-grid c3">
-          <label class="field"><span class="fl-label">Loại báo cáo</span>
+          <label class="field"><span class="fl-label">Loại báo cáo XN MDTĐ</span>
             <select id="rp_type" onchange="updateReportMachineFilter()">
               <option value="machine">Báo cáo theo máy</option>
               <option value="fail">Báo cáo QC không đạt</option>
