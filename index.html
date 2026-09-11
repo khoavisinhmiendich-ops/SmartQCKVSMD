@@ -1191,7 +1191,39 @@ function migrateState(){
   // Mean/SD configs used to be keyed by QC Lot; now they're keyed by Test+Machine+Level and carry
   // a separate "reagentLot" field. Old records still work (lotId is just ignored on lookup) — just
   // backfill the new field so it renders cleanly instead of "undefined".
-  state.configs.forEach(c=>{ if(c.reagentLot===undefined) c.reagentLot=''; });
+  state.configs.forEach(c=>{
+    if(c.reagentLot===undefined) c.reagentLot='';
+    if(c.active===undefined) c.active=true;
+    if(!c.createdAt) c.createdAt=c.updatedAt||new Date(0).toISOString();
+  });
+  // LOT hóa chất mới: bảo toàn lịch sử và chỉ một LOT đang sử dụng cho mỗi Xét nghiệm + Máy + Level.
+  const reagentGroups={};
+  state.configs.forEach((c,idx)=>{
+    const key=c.testId+'|'+c.machineId+'|'+Number(c.level);
+    (reagentGroups[key]||(reagentGroups[key]=[])).push({c,idx});
+  });
+  Object.values(reagentGroups).forEach(group=>{
+    const active=group.filter(x=>x.c.active!==false);
+    if(active.length>1){
+      active.sort((a,b)=>(b.c.createdAt||'').localeCompare(a.c.createdAt||''));
+      active.slice(1).forEach(x=>x.c.active=false);
+    }
+  });
+  // LOT QC mới: bảo toàn LOT cũ và chỉ một LOT đang sử dụng cho mỗi Xét nghiệm + Level.
+  const lotGroups={};
+  state.lots.forEach((l,idx)=>{
+    if(l.active===undefined) l.active=true;
+    if(!l.createdAt) l.createdAt=l.startedAt||l.openDate||new Date(0).toISOString();
+    const key=l.testId+'|'+Number(l.level);
+    (lotGroups[key]||(lotGroups[key]=[])).push({l,idx});
+  });
+  Object.values(lotGroups).forEach(group=>{
+    const active=group.filter(x=>x.l.active!==false);
+    if(active.length>1){
+      active.sort((a,b)=>(b.l.createdAt||'').localeCompare(a.l.createdAt||''));
+      active.slice(1).forEach(x=>x.l.active=false);
+    }
+  });
 }
 
 /* ---------- Westgard engine ---------- */
@@ -1236,7 +1268,79 @@ function groupKey(r){ return r.testId+'|'+r.machineId+'|'+r.lotId+'|'+r.level; }
    the most recently saved one is used for new entries; historical results keep the mean/sd they were computed with. */
 function getConfig(testId,machineId,level){
   const matches=state.configs.filter(c=>c.testId===testId&&c.machineId===machineId&&c.level===level);
-  return matches.length? matches[matches.length-1] : undefined;
+  const active=matches.filter(c=>c.active!==false);
+  return (active.length?active:matches).slice().sort((a,b)=>(b.createdAt||b.updatedAt||'').localeCompare(a.createdAt||a.updatedAt||''))[0];
+}
+function reagentConfigHistory(testId,machineId,level){
+  return state.configs.filter(c=>c.testId===testId&&c.machineId===machineId&&Number(c.level)===Number(level))
+    .slice().sort((a,b)=>(b.createdAt||b.updatedAt||'').localeCompare(a.createdAt||a.updatedAt||''));
+}
+function reagentConfigStatus(cfg){
+  if(!cfg || !cfg.reagentLot) return {key:'missing',label:'Chưa có LOT'};
+  if(!cfg.expDate) return {key:'active',label:cfg.active===false?'Không còn sử dụng':'Đang sử dụng'};
+  const d=new Date(cfg.expDate+'T23:59:59');
+  const diff=(d-new Date())/86400000;
+  if(diff<0) return {key:'expired',label:'Hết hạn'};
+  if(diff<=30) return {key:'soon',label:'Sắp hết hạn'};
+  return {key:cfg.active===false?'inactive':'active',label:cfg.active===false?'Không còn sử dụng':'Đang sử dụng'};
+}
+function reagentConfigPill(cfg){
+  const st=reagentConfigStatus(cfg);
+  if(st.key==='expired') return '<span class="pill reject"><span class="dot"></span>Hết hạn</span>';
+  if(st.key==='soon') return '<span class="pill warning"><span class="dot"></span>Sắp hết hạn</span>';
+  if(st.key==='inactive') return '<span class="tag">Không còn sử dụng</span>';
+  if(st.key==='missing') return '<span class="tag">Chưa có LOT</span>';
+  return '<span class="pill pass"><span class="dot"></span>'+st.label+'</span>';
+}
+function openReagentLotModal(testId,machineId,level,addNew){
+  const current=getConfig(testId,machineId,level);
+  const cfg=addNew?null:current;
+  const test=byId(state.tests,testId), machine=byId(state.machines,machineId);
+  const body=`<form id="reagentLotForm" onsubmit="return submitReagentLot(event,'${testId}','${machineId}',${level},${addNew?'true':'false'})">
+    <div class="hint" style="margin-bottom:10px;">${escapeHtml(test?.name||'')} · ${escapeHtml(machine?.name||'')} · Level ${level}</div>
+    <div class="form-grid">
+      <label class="field span2"><span class="fl-label">LOT hóa chất *</span><input id="rl_lot" required value="${cfg?escapeHtml(cfg.reagentLot||''):''}" placeholder="Số LOT hóa chất"></label>
+      <label class="field"><span class="fl-label">Ngày bắt đầu sử dụng</span><input type="date" id="rl_open" value="${cfg?.openDate||todayISO()}"></label>
+      <label class="field"><span class="fl-label">Hạn sử dụng</span><input type="date" id="rl_exp" value="${cfg?.expDate||''}"></label>
+      <label class="field"><span class="fl-label">Mean *</span><input type="number" step="any" id="rl_mean" required value="${cfg&&cfg.mean!==undefined?cfg.mean:''}"></label>
+      <label class="field"><span class="fl-label">1SD *</span><input type="number" step="any" id="rl_sd" required value="${cfg&&cfg.sd!==undefined?cfg.sd:''}"></label>
+    </div>
+    <div class="hint" style="margin-top:8px;">${addNew?'LOT mới sẽ trở thành LOT đang sử dụng; LOT cũ được giữ nguyên trong lịch sử.':'Chỉnh sửa LOT đang sử dụng; không xóa các LOT cũ trong lịch sử.'}</div>
+    <div class="btn-row"><button type="submit" class="btn primary">${addNew?'Lưu LOT hóa chất mới':'Lưu LOT hóa chất'}</button><button type="button" class="btn ghost" onclick="closeModal()">Huỷ</button></div>
+  </form>`;
+  showModal(addNew?'Thêm LOT hóa chất mới':'Sửa LOT hóa chất',body,'wide');
+}
+function submitReagentLot(ev,testId,machineId,level,addNew){
+  ev.preventDefault();
+  const lot=document.getElementById('rl_lot').value.trim();
+  const meanStr=document.getElementById('rl_mean').value, sdStr=document.getElementById('rl_sd').value;
+  const mean=parseFloat(meanStr), sd=parseFloat(sdStr);
+  if(!lot||meanStr===''||sdStr===''||isNaN(mean)||isNaN(sd)||sd<=0){toast('reject','Thiếu thông tin','Vui lòng nhập LOT, Mean và 1SD (SD > 0).');return false;}
+  const now=new Date().toISOString();
+  const data={reagentLot:lot,openDate:document.getElementById('rl_open').value,expDate:document.getElementById('rl_exp').value,mean,sd};
+  if(addNew){
+    state.configs.filter(c=>c.testId===testId&&c.machineId===machineId&&Number(c.level)===Number(level)).forEach(c=>{if(c.active!==false){c.active=false;c.endedAt=now;}});
+    state.configs.push({id:uid('C'),testId,machineId,level:Number(level),...data,active:true,startedAt:now,createdAt:now});
+  }else{
+    const cfg=getConfig(testId,machineId,level);
+    if(!cfg){ toast('warning','Chưa có LOT hóa chất','Hãy thêm LOT hóa chất mới.'); return false; }
+    Object.assign(cfg,data,{active:true,updatedAt:now,startedAt:cfg.startedAt||now});
+    state.configs.filter(c=>c.id!==cfg.id&&c.testId===testId&&c.machineId===machineId&&Number(c.level)===Number(level)).forEach(c=>c.active=false);
+  }
+  const test=byId(state.tests,testId);
+  state.audit.unshift({id:uid('AU'),time:now,user:state.settings.currentUser,action:addNew?'Thêm LOT hóa chất mới':'Sửa LOT hóa chất',detail:`${test?.name||''} · Level ${level} · LOT ${lot}`});
+  queueSave();closeModal();renderTests();
+  toast('pass',addNew?'Đã thêm LOT hóa chất mới':'Đã cập nhật LOT hóa chất',addNew?'LOT cũ vẫn được giữ trong lịch sử.':'Thông tin LOT đang sử dụng đã được cập nhật.');
+  return false;
+}
+function openReagentLotHistoryModal(testId,machineId,level){
+  const test=byId(state.tests,testId), machine=byId(state.machines,machineId);
+  const rows=reagentConfigHistory(testId,machineId,level);
+  const body=`<div class="hint" style="margin-bottom:10px;">${escapeHtml(test?.name||'')} · ${escapeHtml(machine?.name||'')} · Level ${level}</div>
+    <div class="table-wrap"><table><thead><tr><th>LOT hóa chất</th><th>Ngày bắt đầu</th><th>HSD</th><th>Mean</th><th>1SD</th><th>Trạng thái</th></tr></thead><tbody>
+    ${rows.length?rows.map(c=>`<tr><td class="mono">${escapeHtml(c.reagentLot||'—')}</td><td class="mono">${fmtDMY(c.openDate||((c.startedAt||'').slice(0,10)))||'—'}</td><td class="mono">${fmtDMY(c.expDate)||'—'}</td><td class="mono">${c.mean??'—'}</td><td class="mono">${c.sd??'—'}</td><td>${reagentConfigPill(c)}</td></tr>`).join(''):`<tr><td colspan="6" class="tbl-empty">Chưa có lịch sử LOT hóa chất.</td></tr>`}
+    </tbody></table></div><div class="btn-row" style="margin-top:12px;"><button class="btn ghost" onclick="closeModal()">Đóng</button></div>`;
+  showModal('Lịch sử LOT hóa chất · Level '+level,body,'wide');
 }
 function computeRange(mean,sd){
   if(mean===undefined||mean===null||mean===''||isNaN(mean)||sd===undefined||sd===null||sd===''||isNaN(sd)) return '—';
@@ -1251,6 +1355,7 @@ function seriesFor(testId,machineId,lotId,level){
 function addResult({date,time,machineId,testId,lotId,level,value,user}, opts={}){
   const cfg=getConfig(testId,machineId,level);
   if(!cfg) throw new Error('Chưa thiết lập Mean/SD (theo Lot hóa chất) cho Xét nghiệm + Máy + Level này. Vào mục "Xét nghiệm" → "Quản lý hóa chất" để thiết lập.');
+  if(cfg.expDate && new Date(cfg.expDate+'T23:59:59')<new Date()) throw new Error('LOT hóa chất đang hết hạn. Vui lòng vào mục "Xét nghiệm" → "Quản lý hóa chất" và tạo LOT hóa chất mới trước khi nhập QC.');
   const z=round((value-cfg.mean)/cfg.sd,2);
   const priorHistory=seriesFor(testId,machineId,lotId,level).map(r=>({z:r.z}));
   const history=[...priorHistory,{z}];
@@ -1258,6 +1363,7 @@ function addResult({date,time,machineId,testId,lotId,level,value,user}, opts={})
   const result={
     id:uid('R'), date, time, machineId, testId, lotId, level,
     value: round(value,4), mean:cfg.mean, sd:cfg.sd, z, sdBand: sdBandLabel(z),
+    reagentLot:cfg.reagentLot||'', reagentConfigId:cfg.id||'',
     status, violations, user, createdAt: new Date().toISOString(), resolvedRequired: status==='reject'
   };
   state.results.push(result);
@@ -1455,7 +1561,7 @@ const VIEW_META={
   machines:['Máy xét nghiệm','Danh mục thiết bị'],
   lots:['Lot QC Máy miễn dịch tự động','Quản lý lô QC - theo Level 1 & Level 2'],
   'rapidwater-lots':['Lot QC Test nhanh & Test nước','Quản lý Lot - theo chứng Âm và chứng Dương'],
-  reports:['Báo cáo XN Miễn dịch TĐ','Xuất báo cáo QC'],
+  reports:['Báo cáo XN MDTĐ','Xuất báo cáo QC'],
   audit:['Nhật kí','Lịch sử thao tác — không thể chỉnh sửa hoặc xoá'],
   users:['Người dùng','Danh sách người dùng hệ thống'],
   system:['Hệ thống','Cấu hình chung']
@@ -1638,7 +1744,7 @@ function renderDashboard(){
   const tdToday=tdResults.filter(r=>recordDate(r,'td')===today).length;
   const rwToday=rwResults.filter(r=>recordDate(r,'rw')===today).length;
   const tcTotal=tcResults.length, tdTotal=tdResults.length, rwTotal=rwResults.length;
-  const testCount=state.tests.length, machineCount=state.machines.length, lotActive=state.lots.filter(l=>lotStatus(l).key!=='expired').length;
+  const testCount=state.tests.length, machineCount=state.machines.length, lotActive=state.lots.filter(l=>l.active!==false && lotStatus(l).key!=='expired').length;
 
   el.innerHTML=`
     <div class="grid g-kpi" style="margin-bottom:16px;">
@@ -1815,7 +1921,7 @@ function renderRapidWaterEntry(){
           <div class="form-grid">
             <label class="field"><span class="fl-label">Tháng / Năm</span><input type="month" id="rw_month" value="${escapeHtml(editingRecord?.month||new Date().toISOString().slice(0,7))}" required></label>
             <label class="field"><span class="fl-label">Tên xét nghiệm *</span>
-              <select id="rw_test" required>
+              <select id="rw_test" required onchange="onRapidTestOrControlChange()">
                 <option value="">— Chọn xét nghiệm —</option>
                 ${state.rapidWaterTests.map(t=>`<option value="${escapeHtml(t.id)}" ${selectedTestId===t.id?'selected':''}>${escapeHtml(t.name)} · ${escapeHtml(t.category)}</option>`).join('')}
               </select>
@@ -1824,10 +1930,10 @@ function renderRapidWaterEntry(){
             <label class="field"><span class="fl-label">Nhà sản xuất</span><input id="rw_manufacturer" placeholder="Nhà sản xuất" value="${escapeHtml(editingRecord?.manufacturer||'')}"></label>
             <label class="field"><span class="fl-label">Lot hóa chất</span><input id="rw_reagentLot" placeholder="Số lot hóa chất" value="${escapeHtml(editingRecord?.reagentLot||'')}"></label>
             <label class="field"><span class="fl-label">Hạn sử dụng</span><input type="date" id="rw_expiry" value="${escapeHtml(editingRecord?.expiry||'')}"></label>
-            <label class="field"><span class="fl-label">Chứng / Mức</span><select id="rw_controlLot">
+            <label class="field"><span class="fl-label">Chứng / Mức</span><select id="rw_controlLot" onchange="onRapidTestOrControlChange()">
               <option value="Âm" ${selectedControlLot==='Âm'?'selected':''}>Âm</option><option value="Dương" ${selectedControlLot==='Dương'?'selected':''}>Dương</option>
             </select></label>
-            <label class="field"><span class="fl-label">LOT</span><input id="rw_qcLot" placeholder="Số LOT tương ứng với Chứng / Mức" value="${escapeHtml(editingRecord?.qcLot||'')}"></label>
+            <label class="field"><span class="fl-label">LOT</span><input id="rw_qcLot" placeholder="Số LOT tương ứng với Chứng / Mức" value="${escapeHtml(editingRecord?.qcLot || (rapidActiveLot(selectedTestId,selectedControlLot==='Dương'?'positive':'negative')?.lot||''))}"></label>
           </div>
 
           <div class="section-title" style="margin-top:18px;">Kết quả chạy lần 1 và lần 2</div>
@@ -2080,6 +2186,16 @@ function printRapidWaterQC(recordId){
   }
 }
 
+function onRapidTestOrControlChange(){
+  if(window.rapidWaterEditingId) return;
+  const testId=document.getElementById('rw_test')?.value;
+  const control=document.getElementById('rw_controlLot')?.value||'Âm';
+  const input=document.getElementById('rw_qcLot');
+  if(!input||!testId) return;
+  const current=rapidActiveLot(testId,control==='Dương'?'positive':'negative');
+  input.value=current?.lot||'';
+}
+
 function submitRapidWaterQC(ev){
   ev.preventDefault();
   const testId=document.getElementById('rw_test').value;
@@ -2091,7 +2207,7 @@ function submitRapidWaterQC(ev){
     reagentLot:document.getElementById('rw_reagentLot').value.trim(),
     expiry:document.getElementById('rw_expiry').value,
     controlLot:document.getElementById('rw_controlLot').value,
-    qcLot:document.getElementById('rw_qcLot').value.trim(),
+    qcLot:document.getElementById('rw_qcLot').value.trim() || (rapidActiveLot(document.getElementById('rw_test').value,document.getElementById('rw_controlLot').value==='Dương'?'positive':'negative')?.lot||''),
     run1Neg:document.getElementById('rw_r1_neg').value, run1Pos:document.getElementById('rw_r1_pos').value,
     run2Neg:document.getElementById('rw_r2_neg').value, run2Pos:document.getElementById('rw_r2_pos').value,
     note:document.getElementById('rw_note').value.trim(),
@@ -2181,10 +2297,11 @@ function onEntryTestChange(){
   const tid=document.getElementById('f_test').value;
   const mid=document.getElementById('f_machine').value;
   const lotSel=document.getElementById('f_lot');
-  const lots=state.lots.filter(l=>l.testId===tid);
+  const lots=state.lots.filter(l=>l.testId===tid && l.active!==false);
   lotSel.innerHTML='<option value="">— Chọn lot —</option>'+lots.map(l=>`<option value="${l.id}">${escapeHtml(l.lot)} (Level ${l.level})</option>`).join('');
   document.getElementById('f_level').innerHTML='<option value="">— Level —</option>';
-  clearTargetInfo();
+  const latest=lots.slice().sort((a,b)=>(b.startedAt||b.createdAt||'').localeCompare(a.startedAt||a.createdAt||''));
+  if(latest.length){ lotSel.value=latest[0].id; onEntryLotChange(); } else clearTargetInfo();
 }
 function onEntryLotChange(){
   const lid=document.getElementById('f_lot').value;
@@ -2762,22 +2879,28 @@ function reagentModuleHtml(machine, tests){
   </div>`;
 }
 function reagentRowHtml(test, machineId, level){
-  const cfg=state.configs.find(c=>c.testId===test.id && c.machineId===machineId && c.level===level);
-  const qcLot=state.lots.find(l=>l.testId===test.id && l.level===level);
+  const cfg=getConfig(test.id,machineId,level);
+  const qcLot=activeQcLot(test.id,level);
   const rid=test.id+'_'+level;
+  const hasCfg=!!cfg;
   return `<tr>
     <td><b>${escapeHtml(test.name)}</b></td>
     <td class="mono">${qcLot?escapeHtml(qcLot.lot):'—'}</td>
-    <td><input id="rc_${rid}_reagent" value="${cfg?escapeHtml(cfg.reagentLot||''):''}" placeholder="Số lot hóa chất" style="min-width:110px;"></td>
+    <td>
+      <input id="rc_${rid}_reagent" value="${hasCfg?escapeHtml(cfg.reagentLot||''):''}" placeholder="Số lot hóa chất" style="min-width:110px;" ${hasCfg?'':'disabled'}>
+      ${hasCfg?`<div style="font-size:10.5px;color:var(--text-muted);margin-top:3px;">${cfg.openDate?'Mở '+fmtDMY(cfg.openDate)+' · ':''}${cfg.expDate?'HD '+fmtDMY(cfg.expDate):''}</div><div style="margin-top:3px;">${reagentConfigPill(cfg)}</div>`:'<span class="tag" style="margin-top:3px;display:inline-block;">Chưa có LOT</span>'}
+    </td>
     <td>L${level}</td>
-    <td><input id="rc_${rid}_mean" type="number" step="any" value="${cfg?cfg.mean:''}" placeholder="—" style="width:82px;"></td>
-    <td><input id="rc_${rid}_sd" type="number" step="any" value="${cfg?cfg.sd:''}" placeholder="—" style="width:76px;"></td>
-    <td class="mono" id="rc_${rid}_range">${cfg?computeRange(cfg.mean,cfg.sd):'—'}</td>
+    <td><input id="rc_${rid}_mean" type="number" step="any" value="${hasCfg?cfg.mean:''}" placeholder="—" style="width:82px;" ${hasCfg?'':'disabled'}></td>
+    <td><input id="rc_${rid}_sd" type="number" step="any" value="${hasCfg?cfg.sd:''}" placeholder="—" style="width:76px;" ${hasCfg?'':'disabled'}></td>
+    <td class="mono" id="rc_${rid}_range">${hasCfg?computeRange(cfg.mean,cfg.sd):'—'}</td>
     <td>${escapeHtml(test.unit)||'—'}</td>
-    <td style="white-space:nowrap;"><button class="btn primary sm" onclick="saveReagentRow('${test.id}','${machineId}',${level})">Lưu</button>${cfg?` <button class="btn ghost sm" onclick="clearReagentRow('${cfg.id}','${test.id}','${machineId}',${level})">Xoá</button>`:''}</td>
+    <td style="white-space:nowrap;">${hasCfg?`<button class="btn primary sm" onclick="saveReagentRow('${test.id}','${machineId}',${level})">Lưu</button> <button class="btn ghost sm" onclick="openReagentLotModal('${test.id}','${machineId}',${level},false)">Sửa</button> <button class="btn ghost sm" onclick="openReagentLotModal('${test.id}','${machineId}',${level},true)">+ Thêm LOT mới</button> <button class="btn ghost sm" onclick="openReagentLotHistoryModal('${test.id}','${machineId}',${level})">Lịch sử</button>`:`<button class="btn ghost sm" onclick="openReagentLotModal('${test.id}','${machineId}',${level},true)">+ Thêm LOT mới</button>`}</td>
   </tr>`;
 }
 function saveReagentRow(testId, machineId, level){
+  const cfg=getConfig(testId,machineId,level);
+  if(!cfg){openReagentLotModal(testId,machineId,level,true);return;}
   const rid=testId+'_'+level;
   const reagentLot=document.getElementById(`rc_${rid}_reagent`).value.trim();
   const meanStr=document.getElementById(`rc_${rid}_mean`).value;
@@ -2785,10 +2908,10 @@ function saveReagentRow(testId, machineId, level){
   const mean=parseFloat(meanStr), sd=parseFloat(sdStr);
   if(meanStr===''||sdStr===''||isNaN(mean)||isNaN(sd)||sd<=0){ toast('reject','Thiếu Mean/SD','Vui lòng nhập Mean và 1SD (SD phải lớn hơn 0) trước khi lưu.'); return; }
   const test=byId(state.tests,testId);
-  let cfg=state.configs.find(c=>c.testId===testId && c.machineId===machineId && c.level===level);
-  if(cfg){ cfg.reagentLot=reagentLot; cfg.mean=mean; cfg.sd=sd; }
-  else{ cfg={id:uid('C'), testId, machineId, level, reagentLot, mean, sd}; state.configs.push(cfg); }
-  state.audit.unshift({id:uid('AU'),time:new Date().toISOString(),user:state.settings.currentUser,action:'Thiết lập Mean/SD theo Lot hóa chất',
+  const now=new Date().toISOString();
+  Object.assign(cfg,{reagentLot,mean,sd,active:true,updatedAt:now,startedAt:cfg.startedAt||now});
+  state.configs.filter(c=>c.id!==cfg.id&&c.testId===testId&&c.machineId===machineId&&Number(c.level)===Number(level)).forEach(c=>c.active=false);
+  state.audit.unshift({id:uid('AU'),time:now,user:state.settings.currentUser,action:'Thiết lập Mean/SD theo Lot hóa chất',
     detail:`${test?.name||''} · L${level} · Lot hóa chất ${reagentLot||'(chưa ghi)'} · Mean ${mean} / 1SD ${sd}`});
   queueSave();
   renderTests();
@@ -2896,12 +3019,34 @@ function submitMachine(ev,id){
 /* =====================================================================
    QUẢN LÝ LOT QC
    ===================================================================== */
+function activeQcLot(testId, level){
+  const rows=state.lots.filter(l=>l.testId===testId && Number(l.level)===Number(level));
+  const active=rows.filter(l=>l.active!==false);
+  if(active.length) return active.slice().sort((a,b)=>(b.startedAt||b.createdAt||'').localeCompare(a.startedAt||a.createdAt||''))[0];
+  return rows.slice().sort((a,b)=>(b.startedAt||b.createdAt||'').localeCompare(a.startedAt||a.createdAt||''))[0]||null;
+}
+function qcLotHistory(testId, level){
+  return state.lots.filter(l=>l.testId===testId && Number(l.level)===Number(level))
+    .slice().sort((a,b)=>(b.startedAt||b.createdAt||'').localeCompare(a.startedAt||a.createdAt||''));
+}
+function openQcLotHistoryModal(testId, level){
+  const test=byId(state.tests,testId);
+  const machine=test?byId(state.machines,test.machineId):null;
+  const rows=qcLotHistory(testId,level);
+  const body=`<div class="hint" style="margin-bottom:10px;">${escapeHtml(test?.name||'')} · ${escapeHtml(machine?.name||'')} · Level ${level}</div>
+    <div class="table-wrap"><table><thead><tr><th>LOT</th><th>Hãng QC</th><th>Ngày bắt đầu sử dụng</th><th>HSD</th><th>Trạng thái</th></tr></thead><tbody>
+    ${rows.length?rows.map(l=>{const st=l.active!==false?'Đang sử dụng':'Không còn sử dụng';const pill=l.active!==false?'<span class="pill pass"><span class="dot"></span>Đang sử dụng</span>':'<span class="tag">Không còn sử dụng</span>';return `<tr><td class="mono">${escapeHtml(l.lot||'—')}</td><td>${escapeHtml(l.brand||'—')}</td><td class="mono">${fmtDMY((l.startedAt||'').slice(0,10)||l.openDate)||'—'}</td><td class="mono">${fmtDMY(l.expDate)||'—'}</td><td>${pill}</td></tr>`}).join(''):`<tr><td colspan="5" class="tbl-empty">Chưa có lịch sử LOT.</td></tr>`}
+    </tbody></table></div>
+    <div class="btn-row" style="margin-top:12px;"><button class="btn ghost" onclick="closeModal()">Đóng</button></div>`;
+  showModal('Lịch sử LOT QC · Level '+level,body,'wide');
+}
 function renderLots(){
   const el=document.getElementById('view-lots');
   const levelCell=(testId, level)=>{
-    const lot=state.lots.find(l=>l.testId===testId && l.level===level);
+    const lot=activeQcLot(testId,level);
+    const history=qcLotHistory(testId,level);
     if(!lot){
-      const l1=level===2? state.lots.find(l=>l.testId===testId && l.level===1) : null;
+      const l1=level===2? activeQcLot(testId,1) : null;
       return `<td><span class="tag" style="margin-right:6px;">Chưa có</span><button class="btn ghost sm" onclick="openLotModal(null,'${testId}',${level})">+ Thêm</button>${l1?` <button class="btn ghost sm" onclick="duplicateLotToLevel2('${testId}')" title="Tạo Lot Level 2 với cùng số lot/hạn dùng như Level 1">→ Giống L1</button>`:''}</td>`;
     }
     const st=lotStatus(lot);
@@ -2911,7 +3056,7 @@ function renderLots(){
     return `<td>
       <div class="mono" style="font-weight:600;">${escapeHtml(lot.lot)}</div>
       <div style="font-size:11px;color:var(--text-muted);margin:2px 0 4px;">${escapeHtml(lot.brand)||'—'} · Mở ${fmtDMY(lot.openDate)} · HD ${fmtDMY(lot.expDate)}</div>
-      ${stPill} <button class="btn ghost sm" style="margin-left:4px;" onclick="openLotModal('${lot.id}')">Sửa</button>
+      ${stPill} <button class="btn ghost sm" style="margin-left:4px;" onclick="openLotModal('${lot.id}')">Sửa</button> <button class="btn ghost sm" style="margin-left:4px;" onclick="openLotModal(null,'${testId}',${level})">+ Thêm LOT mới</button> <button class="btn ghost sm" style="margin-left:4px;" onclick="openQcLotHistoryModal('${testId}',${level})">Lịch sử</button>
     </td>`;
   };
   el.innerHTML=`
@@ -2923,8 +3068,8 @@ function renderLots(){
       const tests=state.tests.filter(t=>t.machineId===m.id);
       if(!tests.length) return '';
       const isDxi=/UniCel DxI 800/i.test(m.name||'');
-      const missingL2=tests.filter(t=> state.lots.find(l=>l.testId===t.id&&l.level===1) && !state.lots.find(l=>l.testId===t.id&&l.level===2));
-      const missingL3=isDxi?tests.filter(t=> state.lots.find(l=>l.testId===t.id&&l.level===1) && !state.lots.find(l=>l.testId===t.id&&l.level===3)):[];
+      const missingL2=tests.filter(t=> activeQcLot(t.id,1) && !activeQcLot(t.id,2));
+      const missingL3=isDxi?tests.filter(t=> activeQcLot(t.id,1) && !activeQcLot(t.id,3)):[];
       return `<div class="card" style="margin-bottom:16px;">
         <div class="card-head"><div><h3>${escapeHtml(m.name)}</h3><span class="hint">${escapeHtml(m.brand)}</span></div>
           <div class="btn-row">
@@ -2953,19 +3098,19 @@ function duplicateAllLotsToLevel3(machineId){
   const tests=state.tests.filter(t=>t.machineId===machineId);
   let count=0;
   tests.forEach(t=>{
-    const l1=state.lots.find(l=>l.testId===t.id&&l.level===1);
-    const l3=state.lots.find(l=>l.testId===t.id&&l.level===3);
-    if(l1&&!l3){state.lots.push({id:uid('L'),testId:t.id,brand:l1.brand,lot:l1.lot,level:3,openDate:l1.openDate,expDate:l1.expDate});count++;}
+    const l1=activeQcLot(t.id,1);
+    const l3=activeQcLot(t.id,3);
+    if(l1&&!l3){state.lots.push({id:uid('L'),testId:t.id,brand:l1.brand,lot:l1.lot,level:3,openDate:l1.openDate,expDate:l1.expDate,active:true,startedAt:new Date().toISOString(),createdAt:new Date().toISOString()});count++;}
   });
   if(count){state.audit.unshift({id:uid('AU'),time:new Date().toISOString(),user:state.settings.currentUser,action:'Tạo hàng loạt Lot Level 3',detail:`${count} xét nghiệm — ${byId(state.machines,machineId)?.name||''}`});queueSave();}
   renderLots();
   toast(count?'pass':'warning',count?'Đã tạo Lot Level 3 hàng loạt':'Chưa tạo được Lot Level 3',count?`${count} xét nghiệm đã có Lot L3 giống L1.`:'Cần có Lot Level 1 trước.');
 }
 function duplicateLotToLevel2(testId){
-  const l1=state.lots.find(l=>l.testId===testId && l.level===1);
+  const l1=activeQcLot(testId,1);
   if(!l1){ toast('warning','Chưa có Lot Level 1',''); return; }
-  if(state.lots.find(l=>l.testId===testId && l.level===2)){ toast('warning','Đã có Lot Level 2',''); return; }
-  state.lots.push({id:uid('L'), testId, brand:l1.brand, lot:l1.lot, level:2, openDate:l1.openDate, expDate:l1.expDate});
+  if(activeQcLot(testId,2)){ toast('warning','Đã có Lot Level 2',''); return; }
+  state.lots.push({id:uid('L'), testId, brand:l1.brand, lot:l1.lot, level:2, openDate:l1.openDate, expDate:l1.expDate, active:true, startedAt:new Date().toISOString(), createdAt:new Date().toISOString()});
   const test=byId(state.tests,testId);
   state.audit.unshift({id:uid('AU'),time:new Date().toISOString(),user:state.settings.currentUser,action:'Tạo Lot Level 2 (giống Level 1)',detail:`${test?.name||''} · Lot ${l1.lot}`});
   queueSave(); renderLots();
@@ -2975,9 +3120,9 @@ function duplicateAllLotsToLevel2(machineId){
   const tests=state.tests.filter(t=>t.machineId===machineId);
   let count=0;
   tests.forEach(t=>{
-    const l1=state.lots.find(l=>l.testId===t.id && l.level===1);
-    const l2=state.lots.find(l=>l.testId===t.id && l.level===2);
-    if(l1 && !l2){ state.lots.push({id:uid('L'), testId:t.id, brand:l1.brand, lot:l1.lot, level:2, openDate:l1.openDate, expDate:l1.expDate}); count++; }
+    const l1=activeQcLot(t.id,1);
+    const l2=activeQcLot(t.id,2);
+    if(l1 && !l2){ state.lots.push({id:uid('L'), testId:t.id, brand:l1.brand, lot:l1.lot, level:2, openDate:l1.openDate, expDate:l1.expDate, active:true, startedAt:new Date().toISOString(), createdAt:new Date().toISOString()}); count++; }
   });
   if(count){
     state.audit.unshift({id:uid('AU'),time:new Date().toISOString(),user:state.settings.currentUser,action:'Tạo hàng loạt Lot Level 2',detail:`${count} xét nghiệm — ${byId(state.machines,machineId)?.name||''}`});
@@ -3009,15 +3154,34 @@ function submitLot(ev,id){
     lot:document.getElementById('l_lot').value.trim(), level:parseInt(document.getElementById('l_level').value),
     openDate:document.getElementById('l_open').value, expDate:document.getElementById('l_exp').value};
   if(!data.testId||!data.lot){ toast('reject','Thiếu thông tin','Vui lòng chọn xét nghiệm và nhập số Lot.'); return false; }
-  if(id){ Object.assign(byId(state.lots,id), data); } else { state.lots.push({id:uid('L'),...data}); }
-  state.audit.unshift({id:uid('AU'),time:new Date().toISOString(),user:state.settings.currentUser,action:id?'Sửa Lot QC':'Thêm Lot QC',detail:data.lot});
+  const now=new Date().toISOString();
+  if(id){
+    const target=byId(state.lots,id);
+    if(!target){ toast('warning','Không tìm thấy LOT','LOT không còn tồn tại.'); return false; }
+    const oldKey=target.testId+'|'+target.level;
+    const newKey=data.testId+'|'+data.level;
+    if(oldKey!==newKey || target.active!==false){
+      state.lots.filter(l=>l.id!==id && l.testId===data.testId && Number(l.level)===Number(data.level)).forEach(l=>l.active=false);
+      target.active=true;
+      target.startedAt=target.startedAt||now;
+    }
+    Object.assign(target,data,{updatedAt:now});
+  }else{
+    // Thêm LOT mới: LOT cũ được giữ nguyên lịch sử và chuyển sang không còn sử dụng.
+    state.lots.filter(l=>l.testId===data.testId && Number(l.level)===Number(data.level)).forEach(l=>{
+      if(l.active!==false){ l.active=false; l.endedAt=now; }
+    });
+    state.lots.push({id:uid('L'),...data,active:true,startedAt:now,createdAt:now});
+  }
+  const test=byId(state.tests,data.testId);
+  state.audit.unshift({id:uid('AU'),time:now,user:state.settings.currentUser,action:id?'Sửa LOT QC':'Thêm LOT QC mới',detail:`${test?.name||''} · Level ${data.level} · LOT ${data.lot}`});
   queueSave(); closeModal(); renderLots();
-  toast('pass','Đã lưu','');
+  toast('pass',id?'Đã cập nhật LOT QC':'Đã thêm LOT QC mới',id?'Thông tin LOT hiện tại đã được cập nhật.':'LOT cũ vẫn được giữ trong lịch sử; LOT mới đã trở thành LOT đang sử dụng.');
   return false;
 }
 
 /* =====================================================================
-   BÁO CÁO XÉT NGHIỆM MIỄN DỊCH TỰ ĐỘNG
+   BÁO CÁO
    ===================================================================== */
 function renderReports(){
   const el=document.getElementById('view-reports');
@@ -3026,7 +3190,7 @@ function renderReports(){
       <div class="card-head"><h3>Xuất báo cáo</h3><div id="rp_machine_filter" style="display:none;align-items:center;gap:8px;"><span class="hint" style="white-space:nowrap;">Lọc theo máy</span><select id="rp_machine" onchange="generateReport()" style="min-width:220px;max-width:320px;"><option value="">— Chọn máy —</option>${(state.machines||[]).map(m=>`<option value="${escapeHtml(m.id)}">${escapeHtml(m.name||m.id||'')}</option>`).join('')}</select></div></div>
       <div class="card-body">
         <div class="form-grid c3">
-          <label class="field"><span class="fl-label">Loại báo cáo XN MDTĐ</span>
+          <label class="field"><span class="fl-label">Loại báo cáo</span>
             <select id="rp_type" onchange="updateReportMachineFilter()">
               <option value="machine">Báo cáo theo máy</option>
               <option value="fail">Báo cáo QC không đạt</option>
@@ -3245,12 +3409,41 @@ function rapidWaterTestsByCategory(category){
 function rapidWaterLotFor(testId){
   let row=state.rapidWaterLots.find(x=>x.testId===testId);
   if(!row){
-    row={id:uid('RWL'),testId,negative:{brand:'',lot:'',openDate:'',expDate:''},positive:{brand:'',lot:'',openDate:'',expDate:''}};
+    row={id:uid('RWL'),testId,negative:{brand:'',lot:'',openDate:'',expDate:'',active:true},positive:{brand:'',lot:'',openDate:'',expDate:'',active:true},negativeHistory:[],positiveHistory:[]};
     state.rapidWaterLots.push(row);
   }
-  if(!row.negative) row.negative={brand:'',lot:'',openDate:'',expDate:''};
-  if(!row.positive) row.positive={brand:'',lot:'',openDate:'',expDate:''};
+  if(!row.negative) row.negative={brand:'',lot:'',openDate:'',expDate:'',active:true};
+  if(!row.positive) row.positive={brand:'',lot:'',openDate:'',expDate:'',active:true};
+  if(!Array.isArray(row.negativeHistory)) row.negativeHistory=[];
+  if(!Array.isArray(row.positiveHistory)) row.positiveHistory=[];
+  // Backfill dữ liệu cũ thành lịch sử LOT nhưng không làm mất LOT hiện tại.
+  if(row.negative.lot && !row.negativeHistory.some(h=>h.id===row.negative.id || h.lot===row.negative.lot && h.openDate===row.negative.openDate && h.expDate===row.negative.expDate)){
+    row.negative={...row.negative,active:true};
+    row.negativeHistory.unshift({...row.negative,id:row.negative.id||uid('RWLN'),active:true,startedAt:row.negative.startedAt||row.updatedAt||new Date(0).toISOString()});
+  }
+  if(row.positive.lot && !row.positiveHistory.some(h=>h.id===row.positive.id || h.lot===row.positive.lot && h.openDate===row.positive.openDate && h.expDate===row.positive.expDate)){
+    row.positive={...row.positive,active:true};
+    row.positiveHistory.unshift({...row.positive,id:row.positive.id||uid('RWLP'),active:true,startedAt:row.positive.startedAt||row.updatedAt||new Date(0).toISOString()});
+  }
   return row;
+}
+function rapidActiveLot(testId,kind){
+  const row=rapidWaterLotFor(testId);
+  return row?.[kind]||null;
+}
+function openRapidLotHistoryModal(testId,kind){
+  const row=rapidWaterLotFor(testId);
+  const test=state.rapidWaterTests.find(t=>t.id===testId);
+  const key=kind==='negative'?'negativeHistory':'positiveHistory';
+  const label=kind==='negative'?'Chứng Âm':'Chứng Dương';
+  const current=row?.[kind];
+  const history=(row?.[key]||[]).slice().sort((a,b)=>(b.startedAt||b.createdAt||'').localeCompare(a.startedAt||a.createdAt||''));
+  if(current?.lot && !history.some(h=>h.lot===current.lot && h.openDate===current.openDate && h.expDate===current.expDate)) history.unshift({...current,active:true});
+  const body=`<div class="hint" style="margin-bottom:10px;">${escapeHtml(test?.category||'')} · ${escapeHtml(test?.name||'')} · ${label}</div>
+  <div class="table-wrap"><table><thead><tr><th>LOT</th><th>Hãng / nhà sản xuất</th><th>Ngày bắt đầu sử dụng</th><th>HSD</th><th>Trạng thái</th></tr></thead><tbody>
+  ${history.length?history.map(h=>`<tr><td class="mono">${escapeHtml(h.lot||'—')}</td><td>${escapeHtml(h.brand||'—')}</td><td class="mono">${fmtDMY((h.startedAt||'').slice(0,10)||h.openDate)||'—'}</td><td class="mono">${fmtDMY(h.expDate)||'—'}</td><td>${h.active!==false?'<span class="pill pass"><span class="dot"></span>Đang sử dụng</span>':'<span class="tag">Không còn sử dụng</span>'}</td></tr>`).join(''):`<tr><td colspan="5" class="tbl-empty">Chưa có lịch sử LOT.</td></tr>`}
+  </tbody></table></div><div class="btn-row" style="margin-top:12px;"><button class="btn ghost" onclick="closeModal()">Đóng</button></div>`;
+  showModal('Lịch sử LOT QC · '+label,body,'wide');
 }
 function rapidLotStatus(part){
   if(!part || !part.lot) return {key:'missing',label:'Chưa có'};
@@ -3270,12 +3463,14 @@ function rapidLotPill(part){
 function rapidLotCell(part, testId, kind){
   const safe=part||{};
   if(!safe.lot){
-    return `<div class="rapid-lot-cell"><div>${rapidLotPill(safe)}</div><div class="rapid-lot-actions"><button class="btn ghost sm" onclick="openRapidWaterLotModal('${testId}')">+ Thêm</button></div></div>`;
+    return `<div class="rapid-lot-cell"><div>${rapidLotPill(safe)}</div><div class="rapid-lot-actions"><button class="btn ghost sm" onclick="openRapidWaterLotModal('${testId}','${kind}',true)">+ Thêm LOT mới</button></div></div>`;
   }
+  const row=rapidWaterLotFor(testId);
+  const history=(kind==='negative'?row.negativeHistory:row.positiveHistory)||[];
   return `<div class="rapid-lot-cell">
     <div class="lot-no">${escapeHtml(safe.lot)}</div>
     <div class="lot-meta">${escapeHtml(safe.brand||'—')} · Mở ${fmtDMY(safe.openDate)||'—'} · HD ${fmtDMY(safe.expDate)||'—'}</div>
-    <div class="rapid-lot-actions">${rapidLotPill(safe)} <button class="btn ghost sm" onclick="openRapidWaterLotModal('${testId}')">Sửa</button></div>
+    <div class="rapid-lot-actions">${rapidLotPill(safe)} <button class="btn ghost sm" onclick="openRapidWaterLotModal('${testId}','${kind}',false)">Sửa</button> <button class="btn ghost sm" onclick="openRapidWaterLotModal('${testId}','${kind}',true)">+ Thêm LOT mới</button> <button class="btn ghost sm" onclick="openRapidLotHistoryModal('${testId}','${kind}')">Lịch sử</button></div>
   </div>`;
 }
 function renderRapidWaterLots(){
@@ -3304,52 +3499,74 @@ function renderRapidWaterLots(){
       </div>`;
     }).join('')}`;
 }
-function openRapidWaterLotModal(testId){
+function openRapidWaterLotModal(testId,kind,addNew){
   const tests=state.rapidWaterTests;
   const selected=testId||tests[0]?.id||'';
-  const row=selected?state.rapidWaterLots.find(x=>x.testId===selected):null;
+  const row=selected?rapidWaterLotFor(selected):null;
   const neg=row?.negative||{}, pos=row?.positive||{};
+  const selectedKind=kind||'negative';
+  const selectedPart=selectedKind==='negative'?neg:pos;
+  const blank={brand:'',lot:'',openDate:todayISO(),expDate:''};
+  const editNeg=addNew&&selectedKind==='negative'?blank:neg;
+  const editPos=addNew&&selectedKind==='positive'?blank:pos;
   const testOptions=tests.map(t=>`<option value="${t.id}" ${t.id===selected?'selected':''}>${escapeHtml(t.category)} — ${escapeHtml(t.name)}</option>`).join('');
-  const body=`<form id="rwLotForm" onsubmit="return submitRapidWaterLot(event)">
+  const body=`<form id="rwLotForm" onsubmit="return submitRapidWaterLot(event,'${selectedKind}',${addNew?'true':'false'})">
     <div class="form-grid">
       <label class="field span2"><span class="fl-label">Xét nghiệm *</span><select id="rwl_test" onchange="refreshRapidWaterLotModal()" required>${testOptions}</select></label>
       <div class="card" style="grid-column:span 1;margin:0;border-left:3px solid var(--success);">
-        <div class="card-head"><h3>Chứng Âm</h3></div><div class="card-body">
-          <label class="field"><span class="fl-label">Hãng / nhà sản xuất</span><input id="rwl_neg_brand" value="${escapeHtml(neg.brand||'')}"></label>
-          <label class="field"><span class="fl-label">Số Lot</span><input id="rwl_neg_lot" value="${escapeHtml(neg.lot||'')}"></label>
-          <label class="field"><span class="fl-label">Ngày mở</span><input type="date" id="rwl_neg_open" value="${neg.openDate||''}"></label>
-          <label class="field"><span class="fl-label">Hạn sử dụng</span><input type="date" id="rwl_neg_exp" value="${neg.expDate||''}"></label>
+        <div class="card-head"><h3>Chứng Âm</h3>${selectedKind==='negative'&&addNew?'<span class="tag">LOT mới</span>':''}</div><div class="card-body">
+          <label class="field"><span class="fl-label">Hãng / nhà sản xuất</span><input id="rwl_neg_brand" value="${escapeHtml(editNeg.brand||'')}"></label>
+          <label class="field"><span class="fl-label">Số Lot</span><input id="rwl_neg_lot" value="${escapeHtml(editNeg.lot||'')}"></label>
+          <label class="field"><span class="fl-label">Ngày mở / bắt đầu sử dụng</span><input type="date" id="rwl_neg_open" value="${editNeg.openDate||''}"></label>
+          <label class="field"><span class="fl-label">Hạn sử dụng</span><input type="date" id="rwl_neg_exp" value="${editNeg.expDate||''}"></label>
         </div>
       </div>
       <div class="card" style="grid-column:span 1;margin:0;border-left:3px solid var(--primary);">
-        <div class="card-head"><h3>Chứng Dương</h3></div><div class="card-body">
-          <label class="field"><span class="fl-label">Hãng / nhà sản xuất</span><input id="rwl_pos_brand" value="${escapeHtml(pos.brand||'')}"></label>
-          <label class="field"><span class="fl-label">Số Lot</span><input id="rwl_pos_lot" value="${escapeHtml(pos.lot||'')}"></label>
-          <label class="field"><span class="fl-label">Ngày mở</span><input type="date" id="rwl_pos_open" value="${pos.openDate||''}"></label>
-          <label class="field"><span class="fl-label">Hạn sử dụng</span><input type="date" id="rwl_pos_exp" value="${pos.expDate||''}"></label>
+        <div class="card-head"><h3>Chứng Dương</h3>${selectedKind==='positive'&&addNew?'<span class="tag">LOT mới</span>':''}</div><div class="card-body">
+          <label class="field"><span class="fl-label">Hãng / nhà sản xuất</span><input id="rwl_pos_brand" value="${escapeHtml(editPos.brand||'')}"></label>
+          <label class="field"><span class="fl-label">Số Lot</span><input id="rwl_pos_lot" value="${escapeHtml(editPos.lot||'')}"></label>
+          <label class="field"><span class="fl-label">Ngày mở / bắt đầu sử dụng</span><input type="date" id="rwl_pos_open" value="${editPos.openDate||''}"></label>
+          <label class="field"><span class="fl-label">Hạn sử dụng</span><input type="date" id="rwl_pos_exp" value="${editPos.expDate||''}"></label>
         </div>
       </div>
     </div>
-    <div class="btn-row"><button type="submit" class="btn primary">Lưu Lot</button><button type="button" class="btn ghost" onclick="closeModal()">Huỷ</button></div>
+    <div class="hint" style="margin-top:10px;">${addNew?`Đang thêm LOT mới cho ${selectedKind==='negative'?'Chứng Âm':'Chứng Dương'}. LOT cũ vẫn được giữ trong lịch sử.`:'Sửa thông tin LOT đang sử dụng; LOT cũ không bị xóa khỏi lịch sử.'}</div>
+    <div class="btn-row"><button type="submit" class="btn primary">${addNew?'Lưu LOT mới':'Lưu LOT'}</button><button type="button" class="btn ghost" onclick="closeModal()">Huỷ</button></div>
   </form>`;
-  showModal(row?'Cập nhật Lot QC — Chứng Âm / Chứng Dương':'Thiết lập Lot QC — Chứng Âm / Chứng Dương',body,'wide');
+  showModal(addNew?'Thêm LOT QC mới — '+(selectedKind==='negative'?'Chứng Âm':'Chứng Dương'):'Sửa LOT QC — '+(selectedKind==='negative'?'Chứng Âm':'Chứng Dương'),body,'wide');
 }
 function refreshRapidWaterLotModal(){
   const id=document.getElementById('rwl_test')?.value;
   if(id){ closeModal(); openRapidWaterLotModal(id); }
 }
-function submitRapidWaterLot(ev){
+function submitRapidWaterLot(ev,kind,addNew){
   ev.preventDefault();
   const testId=document.getElementById('rwl_test').value;
   if(!testId){ toast('reject','Thiếu xét nghiệm','Vui lòng chọn xét nghiệm.'); return false; }
-  let row=state.rapidWaterLots.find(x=>x.testId===testId);
-  if(!row){ row={id:uid('RWL'),testId}; state.rapidWaterLots.push(row); }
-  row.negative={brand:document.getElementById('rwl_neg_brand').value.trim(),lot:document.getElementById('rwl_neg_lot').value.trim(),openDate:document.getElementById('rwl_neg_open').value,expDate:document.getElementById('rwl_neg_exp').value};
-  row.positive={brand:document.getElementById('rwl_pos_brand').value.trim(),lot:document.getElementById('rwl_pos_lot').value.trim(),openDate:document.getElementById('rwl_pos_open').value,expDate:document.getElementById('rwl_pos_exp').value};
+  const row=rapidWaterLotFor(testId);
+  const now=new Date().toISOString();
+  const readPart=(prefix)=>({brand:document.getElementById(`rwl_${prefix}_brand`).value.trim(),lot:document.getElementById(`rwl_${prefix}_lot`).value.trim(),openDate:document.getElementById(`rwl_${prefix}_open`).value,expDate:document.getElementById(`rwl_${prefix}_exp`).value});
+  const part=readPart(kind==='positive'?'pos':'neg');
+  if(!part.lot){ toast('reject','Thiếu số LOT','Vui lòng nhập số LOT.'); return false; }
+  const key=kind==='positive'?'positive':'negative';
+  const histKey=key==='positive'?'positiveHistory':'negativeHistory';
+  if(addNew){
+    const old=row[key];
+    if(old?.lot){ row[histKey]=Array.isArray(row[histKey])?row[histKey]:[]; row[histKey].forEach(h=>h.active=false); row[histKey].unshift({...old,id:old.id||uid('RWLH'),active:false,endedAt:now}); }
+    row[key]={...part,id:uid(key==='positive'?'RWLP':'RWLN'),active:true,startedAt:now};
+  }else{
+    const old=row[key]||{};
+    row[key]={...old,...part,active:true,startedAt:old.startedAt||now,updatedAt:now};
+    row[histKey]=Array.isArray(row[histKey])?row[histKey]:[];
+    const idx=row[histKey].findIndex(h=>h.id===row[key].id);
+    const snapshot={...row[key],active:true};
+    if(idx>=0) row[histKey][idx]=snapshot; else if(part.lot) row[histKey].unshift(snapshot);
+  }
+  row.updatedAt=now;
   const test=state.rapidWaterTests.find(t=>t.id===testId);
-  state.audit.unshift({id:uid('AU'),time:new Date().toISOString(),user:state.settings.currentUser,action:'Cập nhật Lot QC Test nhanh/Test nước',detail:`${test?.category||''} · ${test?.name||''}`});
+  state.audit.unshift({id:uid('AU'),time:now,user:state.settings.currentUser,action:addNew?'Thêm LOT QC Test nhanh/Test nước mới':'Sửa LOT QC Test nhanh/Test nước',detail:`${test?.category||''} · ${test?.name||''} · ${kind==='negative'?'Chứng Âm':'Chứng Dương'} · LOT ${part.lot}`});
   queueSave(); closeModal(); renderRapidWaterLots();
-  toast('pass','Đã lưu Lot QC',`${test?.name||''} — đã cập nhật chứng Âm và chứng Dương.`);
+  toast('pass',addNew?'Đã thêm LOT QC mới':'Đã cập nhật LOT QC',addNew?'LOT cũ vẫn được giữ trong lịch sử; LOT mới đã trở thành LOT đang sử dụng.':'Thông tin LOT đang sử dụng đã được cập nhật.');
   return false;
 }
 
